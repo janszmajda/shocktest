@@ -98,15 +98,17 @@ def store_market(market: dict, series: list[dict]) -> int:
 
 
 def main() -> None:
-    """Fetch 60+ Polymarket markets with price history into MongoDB."""
-    # Fetch markets in pages to ensure we get enough binary ones
+    """Fetch Polymarket markets with price history into MongoDB."""
+    # Fetch markets across all available pages
     all_markets: list[dict] = []
-    for offset in range(0, 200, 100):
+    for offset in range(0, 1000, 100):
         batch = fetch_polymarket_markets(limit=100, offset=offset)
         if not batch:
             break
         all_markets.extend(batch)
         print(f"Fetched page offset={offset}: {len(batch)} markets")
+        if len(batch) < 100:
+            break
 
     # Filter to binary markets with token IDs and reasonable volume
     binary_markets = []

@@ -94,8 +94,8 @@ def store_manifold_market(market: dict, bets: list[dict]) -> int:
 
 
 def main() -> None:
-    """Fetch 20-30 Manifold markets with bet history into MongoDB."""
-    markets = fetch_manifold_markets(limit=100)
+    """Fetch Manifold markets with bet history into MongoDB."""
+    markets = fetch_manifold_markets(limit=200)
 
     stored = 0
     skipped = 0
@@ -114,8 +114,8 @@ def main() -> None:
         stored += 1
 
         # Stop once we have enough
-        if stored >= 30:
-            print("  Reached 30 stored markets — stopping.")
+        if stored >= 60:
+            print("  Reached 60 stored markets — stopping.")
             break
 
         time.sleep(0.3)
