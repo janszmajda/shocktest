@@ -16,20 +16,27 @@ function formatPp(value: number | null): string {
 
 const cards = [
   {
-    label: "Total Shocks",
+    label: "Total Shocks Detected",
     getValue: (s: AggregateStats) => s.total_shocks.toString(),
+    getColor: () => "text-gray-900",
   },
   {
     label: "6h Reversion Rate",
     getValue: (s: AggregateStats) => formatPct(s.reversion_rate_6h),
+    getColor: (s: AggregateStats) =>
+      s.reversion_rate_6h !== null && s.reversion_rate_6h > 0.5
+        ? "text-green-600"
+        : "text-gray-900",
   },
   {
-    label: "Mean Reversion (6h)",
+    label: "Mean Reversion Magnitude",
     getValue: (s: AggregateStats) => formatPp(s.mean_reversion_6h),
+    getColor: () => "text-gray-900",
   },
   {
     label: "Markets Analyzed",
     getValue: (s: AggregateStats) => s.total_markets.toString(),
+    getColor: () => "text-gray-900",
   },
 ];
 
@@ -42,7 +49,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
         >
           <p className="text-sm font-medium text-gray-500">{card.label}</p>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">
+          <p className={`mt-2 text-3xl font-semibold ${card.getColor(stats)}`}>
             {card.getValue(stats)}
           </p>
         </div>
