@@ -151,10 +151,10 @@ export default function PortfolioPage() {
       <Header />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-text-primary">
             Fade Portfolio Builder
           </h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-text-muted">
             Select 2-4 shocks to fade simultaneously. See the combined payoff
             and diversification benefit.
           </p>
@@ -167,10 +167,10 @@ export default function PortfolioPage() {
             {/* Shock selector */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700">
+                <h3 className="text-sm font-semibold text-text-secondary">
                   Available Shocks — sorted by most recent (click to add)
                 </h3>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-text-muted">
                   {filteredShocks.length} of {allShocks.length} shocks
                 </span>
               </div>
@@ -180,11 +180,11 @@ export default function PortfolioPage() {
                   placeholder="Search markets or categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  className="flex-1 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm"
                 />
                 <button
                   onClick={() => setShowAll(!showAll)}
-                  className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                  className="whitespace-nowrap rounded-md border border-border bg-surface-1 px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2"
                 >
                   {showAll ? "Show top 20" : "Show all"}
                 </button>
@@ -201,26 +201,26 @@ export default function PortfolioPage() {
                       disabled={selected.length >= 4 || isSelected}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
                         isSelected
-                          ? "border-blue-300 bg-blue-50 opacity-60"
-                          : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50"
+                          ? "border-accent bg-accent-dim opacity-60"
+                          : "border-border bg-surface-1 hover:border-accent hover:bg-accent-dim"
                       } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-text-primary">
                         {shock.question.substring(0, 55)}
                         {shock.question.length > 55 ? "..." : ""}
                       </span>
                       <span
-                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-green-600" : "text-red-600"}`}
+                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-yes-text" : "text-no-text"}`}
                       >
                         {shock.delta > 0 ? "+" : ""}
                         {(shock.delta * 100).toFixed(0)}pp
                       </span>
                       {shock.category && (
-                        <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        <span className="ml-2 inline-flex rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-muted">
                           {shock.category}
                         </span>
                       )}
-                      <span className="ml-2 text-xs text-gray-400">
+                      <span className="ml-2 text-xs text-text-muted">
                         {new Date(shock.t2).toLocaleDateString()}
                       </span>
                     </button>
@@ -232,27 +232,27 @@ export default function PortfolioPage() {
             {/* Selected positions */}
             {selected.length > 0 && (
               <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-700">
+                <h3 className="mb-2 text-sm font-semibold text-text-secondary">
                   Your Fade Positions
                 </h3>
                 <div className="space-y-2">
                   {selected.map((s, i) => (
                     <div
                       key={s.market_id}
-                      className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3"
+                      className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 p-3"
                     >
                       <div
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: COLORS[i] }}
                       />
-                      <span className="flex-1 text-sm text-gray-900">
+                      <span className="flex-1 text-sm text-text-primary">
                         {s.question.substring(0, 45)}...{" "}
-                        <span className="text-gray-400">
+                        <span className="text-text-muted">
                           ({s.delta > 0 ? "+" : ""}
                           {(s.delta * 100).toFixed(0)}pp)
                         </span>
                       </span>
-                      <label className="text-sm text-gray-500">$</label>
+                      <label className="text-sm text-text-muted">$</label>
                       <input
                         type="number"
                         value={s.positionSize}
@@ -262,11 +262,11 @@ export default function PortfolioPage() {
                         onChange={(e) =>
                           updateSize(s.market_id, Number(e.target.value))
                         }
-                        className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                        className="w-20 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
                       />
                       <button
                         onClick={() => removeShock(s.market_id)}
-                        className="text-sm text-red-500 hover:text-red-700"
+                        className="text-sm text-no-text hover:text-no-text"
                       >
                         Remove
                       </button>
@@ -279,35 +279,35 @@ export default function PortfolioPage() {
             {/* Portfolio Stats */}
             {portfolioStats && (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Positions</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Positions</p>
+                  <p className="text-lg font-bold text-text-primary">
                     {portfolioStats.numPositions}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Total Deployed</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Total Deployed</p>
+                  <p className="text-lg font-bold text-text-primary">
                     ${portfolioStats.totalSize}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Expected P&L</p>
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Expected P&L</p>
                   <p
-                    className={`text-lg font-bold ${portfolioStats.expectedPnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                    className={`text-lg font-bold ${portfolioStats.expectedPnl >= 0 ? "text-yes-text" : "text-no-text"}`}
                   >
                     ${portfolioStats.expectedPnl}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Win Rate</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Win Rate</p>
+                  <p className="text-lg font-bold text-text-primary">
                     {(portfolioStats.avgWinRate * 100).toFixed(0)}%
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Diversification</p>
-                  <p className="text-lg font-bold text-blue-600">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Diversification</p>
+                  <p className="text-lg font-bold text-accent">
                     {portfolioStats.diversificationBenefit}
                   </p>
                 </div>
@@ -316,8 +316,8 @@ export default function PortfolioPage() {
 
             {/* Combined Payoff Chart */}
             {combinedPayoffByOutcome.length > 0 && (
-              <div className="rounded-lg border border-gray-200 bg-white p-6">
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">
+              <div className="rounded-lg border border-border bg-surface-1 p-6">
+                <h3 className="mb-4 text-lg font-semibold text-text-primary">
                   Combined Payoff Graph
                 </h3>
                 <div className="h-80 w-full">
@@ -326,32 +326,33 @@ export default function PortfolioPage() {
                       data={combinedPayoffByOutcome}
                       margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis
                         dataKey="move"
                         tickFormatter={(v: number) => `${v}%`}
-                        tick={{ fontSize: 11 }}
-                        stroke="#9ca3af"
+                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                        stroke="var(--text-muted)"
                         label={{
                           value: "Market Move (%)",
                           position: "bottom",
                           offset: 0,
-                          style: { fontSize: 11, fill: "#9ca3af" },
+                          style: { fontSize: 11, fill: "var(--text-muted)" },
                         }}
                       />
                       <YAxis
                         tickFormatter={(v: number) => `$${v}`}
-                        tick={{ fontSize: 11 }}
-                        stroke="#9ca3af"
+                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                        stroke="var(--text-muted)"
                       />
                       <Tooltip
+                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "12px" }}
                         formatter={(value) => [
                           `$${Number(value).toFixed(2)}`,
                         ]}
                       />
                       <ReferenceLine
                         y={0}
-                        stroke="#6b7280"
+                        stroke="var(--text-muted)"
                         strokeDasharray="3 3"
                       />
 
@@ -371,7 +372,7 @@ export default function PortfolioPage() {
                       <Line
                         type="monotone"
                         dataKey="portfolio"
-                        stroke="#2563eb"
+                        stroke="var(--accent)"
                         strokeWidth={3}
                         dot={false}
                         name="Portfolio"
@@ -381,7 +382,7 @@ export default function PortfolioPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="mt-2 text-xs text-gray-400">
+                <p className="mt-2 text-xs text-text-muted">
                   Dashed lines = individual positions. Bold blue = combined
                   portfolio P&L. Diversification reduces variance when shocks are
                   uncorrelated.
@@ -390,14 +391,14 @@ export default function PortfolioPage() {
             )}
 
             {selected.length === 0 && (
-              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center">
-                <p className="text-sm text-gray-400">
+              <div className="rounded-lg border border-dashed border-border bg-surface-2 py-12 text-center">
+                <p className="text-sm text-text-muted">
                   Click on shocks above to build your fade portfolio
                 </p>
               </div>
             )}
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-text-muted">
               Assumes shock outcomes are independent across markets. In-sample
               estimates. Ignores transaction costs, slippage, and liquidity. Not
               investment advice.

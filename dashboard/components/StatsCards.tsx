@@ -4,54 +4,72 @@ interface StatsCardsProps {
   stats: AggregateStats;
 }
 
-function formatPct(value: number | null): string {
-  if (value === null) return "—";
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function formatPp(value: number | null): string {
-  if (value === null) return "—";
-  return `${(value * 100).toFixed(1)}pp`;
-}
-
-const cards = [
-  {
-    label: "Total Shocks Detected",
-    getValue: (s: AggregateStats) => s.total_shocks.toString(),
-    getColor: () => "text-gray-900",
-  },
-  {
-    label: "6h Reversion Rate",
-    getValue: (s: AggregateStats) => formatPct(s.reversion_rate_6h),
-    getColor: (s: AggregateStats) =>
-      s.reversion_rate_6h !== null && s.reversion_rate_6h > 0.5
-        ? "text-green-600"
-        : "text-gray-900",
-  },
-  {
-    label: "Mean Reversion Magnitude",
-    getValue: (s: AggregateStats) => formatPp(s.mean_reversion_6h),
-    getColor: () => "text-gray-900",
-  },
-  {
-    label: "Markets Analyzed",
-    getValue: (s: AggregateStats) => s.total_markets.toString(),
-    getColor: () => "text-gray-900",
-  },
-];
-
 export default function StatsCards({ stats }: StatsCardsProps) {
+  const items = [
+    {
+      label: "Total Shocks",
+      value: stats.total_shocks.toString(),
+      delta: `across ${stats.total_markets} markets`,
+      color: "text-text-primary",
+    },
+    {
+      label: "6h Reversion Rate",
+      value:
+        stats.reversion_rate_6h !== null
+          ? `${(stats.reversion_rate_6h * 100).toFixed(1)}%`
+          : "—",
+      delta:
+        stats.reversion_rate_6h !== null && stats.reversion_rate_6h > 0.5
+          ? "majority revert"
+          : "below 50%",
+      color:
+        stats.reversion_rate_6h !== null && stats.reversion_rate_6h > 0.5
+          ? "text-yes-text"
+          : "text-text-primary",
+    },
+    {
+      label: "Mean Reversion",
+      value:
+        stats.mean_reversion_6h !== null
+          ? `${(stats.mean_reversion_6h * 100).toFixed(1)}pp`
+          : "—",
+      delta: "avg magnitude at 6h",
+      color: "text-text-primary",
+    },
+    {
+      label: "Sample Size",
+      value: stats.sample_size_6h.toString(),
+      delta: `${stats.sample_size_6h} valid at 6h`,
+      color: "text-text-primary",
+    },
+    {
+      label: "Win Rate",
+      value:
+        stats.backtest?.win_rate_6h != null
+          ? `${(stats.backtest.win_rate_6h * 100).toFixed(0)}%`
+          : "—",
+      delta: "fade strategy 6h",
+      color:
+        stats.backtest?.win_rate_6h != null && stats.backtest.win_rate_6h > 0.5
+          ? "text-yes-text"
+          : "text-text-primary",
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {cards.map((card) => (
+    <div className="flex overflow-x-auto border-b border-border">
+      {items.map((item, i) => (
         <div
-          key={card.label}
-          className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+          key={item.label}
+          className={`flex-1 min-w-[120px] px-4 py-3 ${i < items.length - 1 ? "border-r border-border" : ""}`}
         >
-          <p className="text-sm font-medium text-gray-500">{card.label}</p>
-          <p className={`mt-2 text-3xl font-semibold ${card.getColor(stats)}`}>
-            {card.getValue(stats)}
+          <p className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
+            {item.label}
           </p>
+          <p className={`mt-1 font-mono text-base font-medium ${item.color}`}>
+            {item.value}
+          </p>
+          <p className="mt-0.5 text-[10px] text-text-muted">{item.delta}</p>
         </div>
       ))}
     </div>

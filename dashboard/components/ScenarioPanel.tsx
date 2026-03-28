@@ -61,20 +61,20 @@ export default function ScenarioPanel({
   ]);
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-      <h4 className="text-lg font-semibold text-gray-900">
+    <div className="rounded-lg border border-border bg-surface-2 p-6">
+      <h4 className="text-lg font-semibold text-text-primary">
         Scenario Analysis — What If?
       </h4>
-      <p className="mb-4 text-xs text-gray-500">
+      <p className="mb-4 text-xs text-text-muted">
         Explore how your fade position performs under different assumptions
         {category && ` (${category} market)`}
       </p>
 
       <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-text-secondary">
             Probability moves to:{" "}
-            <span className="font-semibold text-blue-600">{targetProb}%</span>
+            <span className="font-semibold text-accent">{targetProb}%</span>
           </label>
           <input
             type="range"
@@ -87,9 +87,9 @@ export default function ScenarioPanel({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-text-secondary">
             Resolution in:{" "}
-            <span className="font-semibold text-blue-600">
+            <span className="font-semibold text-accent">
               {daysToResolution} days
             </span>
           </label>
@@ -101,7 +101,7 @@ export default function ScenarioPanel({
             onChange={(e) => setDaysToResolution(Number(e.target.value))}
             className="mt-1 w-full"
           />
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-text-muted">
             Edge factor: {(results.timeDecayFactor * 100).toFixed(0)}%
             {daysToResolution < 7 &&
               " — Short horizon, less time for reversion"}
@@ -109,9 +109,9 @@ export default function ScenarioPanel({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-text-secondary">
             Position:{" "}
-            <span className="font-semibold text-blue-600">${scenarioSize}</span>
+            <span className="font-semibold text-accent">${scenarioSize}</span>
           </label>
           <input
             type="range"
@@ -126,37 +126,37 @@ export default function ScenarioPanel({
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-          <p className="text-xs text-gray-500">P&L at {targetProb}%</p>
+        <div className="rounded-lg bg-surface-1 p-3 text-center">
+          <p className="text-xs text-text-muted">P&L at {targetProb}%</p>
           <p
-            className={`text-lg font-bold ${results.pnlAtTarget >= 0 ? "text-green-600" : "text-red-600"}`}
+            className={`text-lg font-bold ${results.pnlAtTarget >= 0 ? "text-yes-text" : "text-no-text"}`}
           >
             ${results.pnlAtTarget.toFixed(2)}
           </p>
         </div>
-        <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-          <p className="text-xs text-gray-500">Adj. Win Rate</p>
-          <p className="text-lg font-bold text-gray-900">
+        <div className="rounded-lg bg-surface-1 p-3 text-center">
+          <p className="text-xs text-text-muted">Adj. Win Rate</p>
+          <p className="text-lg font-bold text-text-primary">
             {(results.adjustedWinRate * 100).toFixed(0)}%
           </p>
         </div>
-        <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-          <p className="text-xs text-gray-500">Adj. Expected Value</p>
+        <div className="rounded-lg bg-surface-1 p-3 text-center">
+          <p className="text-xs text-text-muted">Adj. Expected Value</p>
           <p
-            className={`text-lg font-bold ${results.adjustedEV >= 0 ? "text-green-600" : "text-red-600"}`}
+            className={`text-lg font-bold ${results.adjustedEV >= 0 ? "text-yes-text" : "text-no-text"}`}
           >
             ${results.adjustedEV.toFixed(2)}
           </p>
         </div>
-        <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-          <p className="text-xs text-gray-500">Max Loss</p>
-          <p className="text-lg font-bold text-red-600">
+        <div className="rounded-lg bg-surface-1 p-3 text-center">
+          <p className="text-xs text-text-muted">Max Loss</p>
+          <p className="text-lg font-bold text-no-text">
             ${results.maxLoss.toFixed(2)}
           </p>
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="mt-4 text-xs text-text-muted">
         Time decay model is a linear approximation. Shorter resolution windows
         reduce the probability of mean reversion playing out. Not investment
         advice.
