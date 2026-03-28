@@ -187,7 +187,7 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
                   className="h-full rounded-full transition-all"
                   style={{
                     width: `${shock.p_after * 100}%`,
-                    background: `linear-gradient(90deg, ${isUp ? "var(--yes)" : "var(--no)"} 0%, ${isUp ? "rgba(34,199,138,0.6)" : "rgba(240,92,92,0.6)"} 100%)`,
+                    background: `linear-gradient(90deg, ${isUp ? "var(--st-yes)" : "var(--st-no)"} 0%, ${isUp ? "rgba(34,199,138,0.6)" : "rgba(240,92,92,0.6)"} 100%)`,
                   }}
                 />
               </div>
