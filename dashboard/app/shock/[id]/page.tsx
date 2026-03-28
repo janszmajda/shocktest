@@ -4,6 +4,8 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import PriceChart from "@/components/PriceChart";
+import PnlHeatmap from "@/components/PnlHeatmap";
+import AiAnalysisBox from "@/components/AiAnalysisBox";
 import PayoffCurve from "@/components/PayoffCurve";
 import ScenarioPanel from "@/components/ScenarioPanel";
 import TradeSimulator from "@/components/TradeSimulator";
@@ -178,6 +180,23 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </h3>
           <PriceChart series={series} shockT1={shockT1} shockT2={shockT2} />
         </div>
+
+        {/* 2b. AI Analysis (if available) */}
+        {"ai_analysis" in shock &&
+          (shock as unknown as { ai_analysis?: { likely_cause: string; overreaction_assessment: string; reversion_confidence: "low" | "medium" | "high" } }).ai_analysis && (
+          <AiAnalysisBox
+            analysis={
+              (shock as unknown as { ai_analysis: { likely_cause: string; overreaction_assessment: string; reversion_confidence: "low" | "medium" | "high" } }).ai_analysis
+            }
+          />
+        )}
+
+        {/* 2c. P&L Heatmap */}
+        <PnlHeatmap
+          entryPrice={shock.p_after}
+          positionSize={positionSize}
+          direction={fadeDirection}
+        />
 
         {/* 3. PayoffCurve */}
         <PayoffCurve
