@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Shock } from "@/lib/types";
 
@@ -8,40 +8,44 @@ interface ShocksTableProps {
   shocks: Shock[];
 }
 
-type SortKey = "abs_delta" | "category" | "source" | "reversion_6h";
+type SortKey = "abs_delta" | "t2" | "category" | "source" | "reversion_6h";
 
 export default function ShocksTable({ shocks }: ShocksTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("abs_delta");
-  const [sortAsc, setSortAsc] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<SortKey>("abs_delta");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  const categories = [
-    "all",
-    ...Array.from(new Set(shocks.map((s) => s.category).filter(Boolean))),
-  ];
+  const categories = useMemo(() => {
+    const cats = new Set(shocks.map((s) => s.category).filter(Boolean));
+    return ["all", ...Array.from(cats)];
+  }, [shocks]);
 
-  const filtered =
-    filterCategory === "all"
-      ? shocks
-      : shocks.filter((s) => s.category === filterCategory);
+  const sorted = useMemo(() => {
+    const filtered =
+      categoryFilter === "all"
+        ? shocks
+        : shocks.filter((s) => s.category === categoryFilter);
 
-  const sorted = [...filtered].sort((a, b) => {
-    const aVal = a[sortKey] ?? 0;
-    const bVal = b[sortKey] ?? 0;
-    if (typeof aVal === "string" && typeof bVal === "string") {
-      return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    }
-    return sortAsc
-      ? (aVal as number) - (bVal as number)
-      : (bVal as number) - (aVal as number);
-  });
+    return [...filtered].sort((a, b) => {
+      const mul = sortDir === "desc" ? -1 : 1;
+      if (sortBy === "abs_delta") return mul * (a.abs_delta - b.abs_delta);
+      if (sortBy === "t2")
+        return mul * (new Date(a.t2).getTime() - new Date(b.t2).getTime());
+      if (sortBy === "reversion_6h")
+        return mul * ((a.reversion_6h ?? 0) - (b.reversion_6h ?? 0));
+      if (sortBy === "category")
+        return mul * (a.category ?? "").localeCompare(b.category ?? "");
+      if (sortBy === "source") return mul * a.source.localeCompare(b.source);
+      return 0;
+    });
+  }, [shocks, sortBy, sortDir, categoryFilter]);
 
   function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortAsc(!sortAsc);
+    if (sortBy === key) {
+      setSortDir(sortDir === "desc" ? "asc" : "desc");
     } else {
-      setSortKey(key);
-      setSortAsc(false);
+      setSortBy(key);
+      setSortDir("desc");
     }
   }
 
@@ -55,6 +59,11 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
     return `${(val * 100).toFixed(1)}pp`;
   }
 
+  function sortIndicator(key: SortKey): string {
+    if (sortBy !== key) return "";
+    return sortDir === "desc" ? " ↓" : " ↑";
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -62,8 +71,8 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
           Detected Shocks
         </h2>
         <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700"
         >
           {categories.map((c) => (
@@ -84,28 +93,31 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
                 className="cursor-pointer px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700"
                 onClick={() => handleSort("source")}
               >
-                Source
+                Source{sortIndicator("source")}
               </th>
               <th
                 className="cursor-pointer px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700"
                 onClick={() => handleSort("category")}
               >
-                Category
+                Category{sortIndicator("category")}
               </th>
               <th
                 className="cursor-pointer px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700"
                 onClick={() => handleSort("abs_delta")}
               >
-                Delta
+                Delta{sortIndicator("abs_delta")}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Time
+              <th
+                className="cursor-pointer px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700"
+                onClick={() => handleSort("t2")}
+              >
+                Time{sortIndicator("t2")}
               </th>
               <th
                 className="cursor-pointer px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700"
                 onClick={() => handleSort("reversion_6h")}
               >
-                6h Reversion
+                6h Reversion{sortIndicator("reversion_6h")}
               </th>
             </tr>
           </thead>
