@@ -19,6 +19,11 @@ function computePnl(
   days: number,
 ): number {
   const p = probability / 100;
+
+  // Guard against division by zero at extreme entry prices
+  if (direction === "buy_no" && entryPrice >= 1) return 0;
+  if (direction === "buy_yes" && entryPrice <= 0) return 0;
+
   let basePnl: number;
 
   if (direction === "buy_no") {
@@ -33,6 +38,8 @@ function computePnl(
     basePnl = value - positionSize;
   }
 
+  // Time decay: models how much of the expected reversion has materialized
+  // At 30+ days, full resolution P&L; at fewer days, partial reversion
   const timeDecay = Math.min(days / 30, 1);
   return basePnl * timeDecay;
 }
@@ -40,10 +47,10 @@ function computePnl(
 function pnlColor(pnl: number, maxAbs: number): string {
   if (maxAbs === 0) return "rgb(255, 255, 255)";
   const ratio = Math.min(Math.abs(pnl) / maxAbs, 1);
-  const intensity = Math.round(ratio * 180);
+  const intensity = Math.round(ratio * 200);
 
-  if (pnl > 0.5) return `rgb(${255 - intensity}, 255, ${255 - intensity})`;
-  if (pnl < -0.5) return `rgb(255, ${255 - intensity}, ${255 - intensity})`;
+  if (pnl > 0) return `rgb(${255 - intensity}, 255, ${255 - intensity})`;
+  if (pnl < 0) return `rgb(255, ${255 - intensity}, ${255 - intensity})`;
   return "rgb(255, 255, 255)";
 }
 
@@ -52,12 +59,10 @@ export default function PnlHeatmap({
   positionSize,
   direction,
 }: PnlHeatmapProps) {
-  const [tooltip, setTooltip] = useState<{
+  const [hovered, setHovered] = useState<{
     prob: number;
     days: number;
     pnl: number;
-    x: number;
-    y: number;
   } | null>(null);
 
   const { grid, maxAbs } = useMemo(() => {
@@ -124,33 +129,34 @@ export default function PnlHeatmap({
               </div>
               {PROB_STEPS.map((prob, colIdx) => {
                 const pnl = grid[rowIdx][colIdx];
+                const isHovered =
+                  hovered !== null &&
+                  hovered.prob === prob &&
+                  hovered.days === days;
                 return (
                   <div
                     key={prob}
-                    className="cursor-crosshair border border-gray-100 p-1 text-center text-[9px] transition-opacity hover:opacity-80"
+                    className={`cursor-crosshair border p-1 text-center text-[9px] ${
+                      isHovered
+                        ? "border-blue-500 ring-1 ring-blue-400"
+                        : "border-gray-100"
+                    }`}
                     style={{ backgroundColor: pnlColor(pnl, maxAbs) }}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        prob,
-                        days,
-                        pnl,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top,
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
+                    onMouseEnter={() => setHovered({ prob, days, pnl })}
+                    onMouseLeave={() => setHovered(null)}
                   >
                     <span
                       className={
                         pnl > 0
-                          ? "text-green-800"
+                          ? "text-green-900"
                           : pnl < 0
-                            ? "text-red-800"
+                            ? "text-red-900"
                             : "text-gray-400"
                       }
                     >
-                      {Math.abs(pnl) >= 1 ? `${pnl > 0 ? "+" : ""}${pnl.toFixed(0)}` : ""}
+                      {Math.abs(pnl) >= 0.5
+                        ? `${pnl > 0 ? "+" : ""}${pnl.toFixed(0)}`
+                        : ""}
                     </span>
                   </div>
                 );
@@ -160,23 +166,37 @@ export default function PnlHeatmap({
         </div>
       </div>
 
-      {/* Tooltip */}
-      {tooltip && (
-        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-          <span className="text-gray-500">Prob: </span>
-          <span className="font-medium">{tooltip.prob}%</span>
-          <span className="mx-2 text-gray-300">|</span>
-          <span className="text-gray-500">Days: </span>
-          <span className="font-medium">{tooltip.days}</span>
-          <span className="mx-2 text-gray-300">|</span>
-          <span className="text-gray-500">P&L: </span>
-          <span
-            className={`font-semibold ${tooltip.pnl > 0 ? "text-green-600" : tooltip.pnl < 0 ? "text-red-600" : "text-gray-600"}`}
-          >
-            ${tooltip.pnl.toFixed(2)}
-          </span>
-        </div>
-      )}
+      {/* Tooltip bar */}
+      <div
+        className={`mt-3 rounded-md border px-3 py-2 text-sm transition-opacity ${
+          hovered ? "opacity-100" : "opacity-0"
+        } border-gray-200 bg-gray-50`}
+      >
+        {hovered ? (
+          <>
+            <span className="text-gray-500">Probability: </span>
+            <span className="font-medium">{hovered.prob}%</span>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className="text-gray-500">Days: </span>
+            <span className="font-medium">{hovered.days}</span>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className="text-gray-500">P&L: </span>
+            <span
+              className={`font-semibold ${
+                hovered.pnl > 0
+                  ? "text-green-600"
+                  : hovered.pnl < 0
+                    ? "text-red-600"
+                    : "text-gray-600"
+              }`}
+            >
+              {hovered.pnl >= 0 ? "+" : ""}${hovered.pnl.toFixed(2)}
+            </span>
+          </>
+        ) : (
+          <span className="text-gray-400">Hover over a cell to see details</span>
+        )}
+      </div>
     </div>
   );
 }
