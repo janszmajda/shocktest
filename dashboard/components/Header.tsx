@@ -11,6 +11,9 @@ export default function Header() {
           <p className="mt-1 text-sm text-gray-500">
             Do Prediction Markets Overreact?
           </p>
+          <p className="mt-0.5 text-xs text-gray-400">
+            Analyzing mean reversion in Polymarket probability shocks
+          </p>
         </Link>
       </div>
     </header>

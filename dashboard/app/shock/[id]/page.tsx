@@ -1,27 +1,76 @@
+"use client";
+
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import PriceChart from "@/components/PriceChart";
 import Footer from "@/components/Footer";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_PRICE_SERIES } from "@/lib/dummyData";
+import { Shock, PricePoint } from "@/lib/types";
 
 interface ShockDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function ShockDetailPage({ params }: ShockDetailPageProps) {
-  const { id } = await params;
+function formatPp(val: number | null): string {
+  if (val === null) return "—";
+  const sign = val > 0 ? "+" : "";
+  return `${sign}${(val * 100).toFixed(1)}pp`;
+}
 
-  // Using dummy data until real MongoDB data flows in (Hours 16-20)
-  const shock = DUMMY_SHOCKS.find((s) => s._id === id) ?? DUMMY_SHOCKS[0];
-  const series = DUMMY_PRICE_SERIES;
+export default function ShockDetailPage({ params }: ShockDetailPageProps) {
+  const { id } = use(params);
+
+  const [shock, setShock] = useState<Shock>(
+    DUMMY_SHOCKS.find((s) => s._id === id) ?? DUMMY_SHOCKS[0],
+  );
+  const [series, setSeries] = useState<PricePoint[]>(DUMMY_PRICE_SERIES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Try fetching real shock data
+    fetch("/api/shocks")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed");
+        return res.json();
+      })
+      .then((shocks: Shock[]) => {
+        const found = shocks.find((s) => s._id === id);
+        if (found) {
+          setShock(found);
+          // Fetch the market's price series
+          return fetch(`/api/markets?id=${found.market_id}`)
+            .then((res) => {
+              if (!res.ok) throw new Error("Failed");
+              return res.json();
+            })
+            .then((market) => {
+              if (market?.series?.length > 0) {
+                setSeries(market.series);
+              }
+            });
+        }
+      })
+      .catch(() => {
+        // Keep dummy data
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const shockT1 = new Date(shock.t1).getTime() / 1000;
   const shockT2 = new Date(shock.t2).getTime() / 1000;
 
-  function formatPp(val: number | null): string {
-    if (val === null) return "—";
-    const sign = val > 0 ? "+" : "";
-    return `${sign}${(val * 100).toFixed(1)}pp`;
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <LoadingSpinner />
+        </main>
+        <Footer />
+      </>
+    );
   }
 
   return (
