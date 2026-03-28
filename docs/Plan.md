@@ -5,7 +5,7 @@
 ---
 
 > **TL;DR**
-> ShockTest is a **trading signal and analysis tool** for Polymarket. It pulls real market data, detects large probability shocks ("overreactions"), measures whether they systematically mean-revert, and gives traders an interactive simulator to size fade-the-shock positions with historical edge statistics. The result is a quant-grade analytics + trading decision tool backed by **MongoDB Atlas**, with market categorization powered by **Google Gemini** — built in 24 hours by a team of three.
+> ShockTest is a **live trading signal system** for Polymarket. A Python monitor polls markets every 2 minutes, detects probability shocks, and uses **Google Gemini** to analyze each shock in real-time — explaining what likely caused it and whether it's an overreaction. Traders see a **P&L heatmap** (inspired by optionsprofitcalculator.com), interactive payoff curves, scenario analysis, and a backtest-powered trade simulator. The result is a complete workflow: **Detect → Analyze → Visualize → Trade** — backed by **MongoDB Atlas**, built in 24 hours by a team of three.
 
 ---
 
@@ -91,12 +91,41 @@ A Python process (`scripts/live_monitor.py`) that runs continuously and transfor
 
 This is the critical differentiator. The brief asks for tools that "help real traders make better decisions." A live monitor that says "a shock just happened, here's the historical edge, do you want to fade it?" is exactly that. Leave it running during the demo — if a shock fires while judges are watching, that's the winning moment.
 
-### G. Stretch: Advanced Features
+### G. Gemini Shock Analyst (Core — MLH Gemini Prize)
 
-Only after MVP (A–F) is fully working:
+When `live_monitor.py` detects a shock, it calls Gemini 2.5 Flash with the market title, direction, and magnitude. Gemini returns:
 
-- **Cross-market shock correlation**: do shocks cluster across categories? Co-occurrence matrix displayed as heatmap
-- **Transaction cost modeling**: deduct 1–2% slippage per trade, report adjusted EV
+1. **What likely caused the shock** (one sentence — inferred from the market title + direction)
+2. **Overreaction vs. legitimate information** (one sentence assessment)
+3. **Reversion confidence** (low / medium / high)
+
+Stored as `ai_analysis` on each shock event. Displayed on the live alert banner and shock detail page:
+
+> 🔴 **SHOCK DETECTED 8 min ago** — "BTC above $100k by June?" dropped 65% → 53%
+> **AI Analysis:** "Likely triggered by a BTC spot flash crash. Appears to be an overreaction — underlying fundamentals unchanged. High confidence of reversion."
+
+This transforms Gemini from a label maker into a **trade reasoning engine**. Every live alert now answers the three questions a trader actually asks: what happened, is it an overreaction, and should I fade it. This is exactly what the MLH Gemini prize judges want to see — an LLM doing real analytical work, not string classification.
+
+### H. P&L Heatmap (Core — The optionsprofitcalculator.com Clone)
+
+The track brief explicitly links to [optionsprofitcalculator.com](https://www.optionsprofitcalculator.com/). Its signature feature is a 2D P&L heatmap. We build the prediction market equivalent:
+
+- **X-axis**: probability (0% → 100%)
+- **Y-axis**: days to resolution (1 → 180)
+- **Color**: P&L of a fade position at that probability and time point (green = profit, red = loss)
+- **Interactive**: hover any cell to see exact P&L, position size adjusts the entire grid
+- **Break-even contour**: white line showing where profit flips to loss across the probability × time surface
+
+Uses the time-decay model from the ScenarioPanel (mean reversion edge diminishes as resolution approaches). This is THE visualization that wins Best UI/UX — it's visually striking, immediately comprehensible, and directly referenced by the track brief.
+
+### I. Stretch: Advanced Features
+
+Only after MVP (A–H) is fully working:
+
+- **Order Book Depth + Slippage Calculator**: Use Polymarket CLOB API for real liquidity data
+- **Paper Trading + Live P&L Tracker**: "Fade This Shock" button → tracked positions with live P&L
+- **Cross-Market Hedge Calculator**: Pair prediction markets with crypto positions
+- **Cross-market shock correlation**: co-occurrence matrix of shocks across categories
 - **Statistical significance**: confidence intervals on reversion rate
 
 ---
@@ -183,13 +212,13 @@ Where the distribution parameters come from the historical backtest for that cat
 | "Profit & loss visualizations across different probability outcomes" | **Payoff Curve** on every shock detail page shows P&L at all possible resolution outcomes (0–100%), with current price and mean-reversion target marked |
 | "Scenario analysis tools that show how a position performs if an event resolves sooner vs later" | **Scenario Panel** with three sliders: target probability, days to resolution (with time-decay model), and position size — outputs update instantly |
 | "Portfolio or strategy views that combine multiple markets into a single payoff graph" | **Portfolio Builder** page: select 2–4 shocks, set position sizes, see combined payoff graph with individual lines + bold portfolio line + diversification stats |
-| "Produce concrete analytical or visual outputs" | Payoff curves, scenario outputs, P&L timelines, payoff distribution histograms, aggregate histograms, category breakdown tables |
-| "Be grounded in real trading use cases" | **Live Shock Monitor** polls Polymarket every 2 min, detects shocks in real-time, and surfaces them with historical edge context — this is a live trading signal system, not a retrospective dashboard |
-| "Quality of insight and correctness of modeling" | Falsifiable hypothesis, transparent methodology, explicit caveats about in-sample bias and transaction costs, time-decay model for resolution timing |
-| "Strength of visualization and UX" | Interactive payoff curves, 3-slider scenario panel, trade simulator, P&L timeline, configurable dashboard controls, live alert banners with historical edge context |
-| "Technical depth and execution" | Multi-source data pipeline, **live polling loop with real-time shock detection**, configurable event detection, LLM categorization, cross-market correlation analysis, portfolio diversification math, full-stack deployment |
-| "Creativity and originality" | Novel approach: treating prediction market overreactions as a systematic signal, quantifying the edge, and building TradFi-style tools (payoff curves, scenario analysis, portfolio builder) around it |
-| "Clarity of explanation" | Concrete user story in demo: "You see a live shock → you check the payoff curve → you run scenarios → you size the trade → you add it to a portfolio" |
+| "Produce concrete analytical or visual outputs" | Payoff curves, **P&L heatmap (probability × time)**, scenario outputs, P&L timelines, payoff distribution histograms, aggregate histograms, category breakdown tables |
+| "Be grounded in real trading use cases" | **Live Shock Monitor** polls Polymarket every 2 min, detects shocks in real-time, and surfaces them with **Gemini AI analysis** explaining what caused each shock and whether to fade it |
+| "Quality of insight and correctness of modeling" | Falsifiable hypothesis, transparent methodology, explicit caveats, time-decay model, **AI-powered shock analysis that reasons about overreaction vs. information** |
+| "Strength of visualization and UX" | Interactive payoff curves, **P&L heatmap (the optionsprofitcalculator.com clone)**, 3-slider scenario panel, trade simulator, P&L timeline, configurable dashboard controls, live alert banners with AI analysis |
+| "Technical depth and execution" | Multi-source data pipeline, **live polling loop with real-time shock detection**, **Gemini real-time reasoning integrated into detection loop**, configurable event detection, portfolio diversification math, full-stack deployment |
+| "Creativity and originality" | Novel approach: treating prediction market overreactions as a systematic signal, quantifying the edge, building TradFi-style tools around it, **AI analyst that explains WHY each shock happened and whether to fade it** |
+| "Clarity of explanation" | Concrete user story: "Live shock detected → AI explains what happened → P&L heatmap shows where this trade is profitable → scenario sliders let you explore → size the trade" |
 
 ---
 
@@ -200,7 +229,7 @@ Where the distribution parameters come from the historical backtest for that cat
 | Data | `polymarket-apis` + `requests` + `pandas` | Fetch & store market time series from Polymarket (primary) and Manifold (supplemental) |
 | Storage | **MongoDB Atlas** (free M0 cluster) | Cloud database for market time series, shock events, backtest results, and aggregate stats |
 | Analysis | `pandas` + `numpy` | Shock detection, post-shock outcomes, fade strategy backtest |
-| Categorization | **Google Gemini 2.5 Flash** (free tier) | Auto-classify markets into politics / sports / crypto / other from titles |
+| AI Analysis | **Google Gemini 2.5 Flash** (free tier) | Real-time shock analysis: infers likely cause, overreaction assessment, reversion confidence for each live alert |
 | Frontend | **Next.js** (App Router) + **Recharts** + **Tailwind CSS** | Interactive dashboard with trade simulator, deployed on Vercel |
 | Domain | **GoDaddy Registry** (free via MLH) | Custom domain for deployed app |
 
@@ -218,112 +247,54 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 | 2–6 | Fetch 50+ Polymarket markets → MongoDB. Pull Manifold markets. | Write delta helpers, start shock detector | Build shocks table + API routes with dummy data |
 | 6–10 | Resample/validate data quality, expand market count | Run shock detection at scale, verify shocks | Build price chart component, per-shock detail page |
 | **10–16** | **Expand to 100+ markets. Compute backtest results (fade P&L per shock). Support Person 2/3.** | **Post-shock outcomes + Gemini categorization + aggregate stats + backtest statistics (win rate, EV, distribution params). Write findings text.** | **Build trade simulator component + configurable controls (θ slider, horizon picker). Wire real data into all components.** |
-| 16–20 | **Build + deploy `live_monitor.py` (CORE).** Flag recent shocks. Write README, support bugs | Validate results, refine findings text, help Person 3 with data interpretation | Wire trade simulator to real backtest data. Payoff curve + scenario panel. Full integration pass. Deploy to Vercel. |
-| 20–24 | **Keep live monitor running during demo.** Help with Devpost. | Stretch: correlation analysis, Devpost description | Portfolio Builder page. Polish UI. Film reel. Final deploy + submission. |
+| 16–20 | **Build + deploy `live_monitor.py` (CORE).** Flag recent shocks. Write README, support bugs | **Add Gemini Shock Analyst to `live_monitor.py` (CORE).** Validate results, write findings, Devpost draft. | Wire real data. Payoff curve + scenario panel. Full integration. Deploy to Vercel. |
+| 20–24 | **Keep live monitor running during demo.** Help with Devpost. | Help Person 3 integrate AI analysis display. Polish. | **P&L Heatmap (CORE).** Portfolio Builder. Live alert banner with AI analysis. UI polish. Film reel. Submit. |
 
 ---
 
-## 7. Hour-by-Hour Detail (Hours 10–24)
+## 7. Hour-by-Hour Detail (Remaining Work)
 
-### Hours 10–16 · Core Trading Tool Build (CURRENT PHASE)
+### Next Steps — Two Core Features to Build Now
 
-**Person 1 (Data Pipeline)**
-- Expand to 100+ markets total across Polymarket + Manifold
-- For each shock event already in MongoDB, compute and store the fade-strategy P&L:
-  - `fade_pnl_1h`, `fade_pnl_6h`, `fade_pnl_24h` (same as reversion values, but framed as P&L per $1 position)
-- Store distribution parameters in `shock_results`: min/max/percentiles of reversion by category
-- Monitor MongoDB storage (free tier = 512MB)
+**Person 2 — Gemini Shock Analyst (~1h)**
+- Add `analyze_shock_with_gemini()` function to `scripts/live_monitor.py`
+- When a new shock is detected, call Gemini 2.5 Flash before writing to MongoDB
+- Store the `ai_analysis` object on each shock event: `{likely_cause, overreaction_assessment, reversion_confidence}`
+- Also backfill: run Gemini on the 15 most recent live alerts that don't have `ai_analysis` yet
+- Help Person 3 display the AI analysis on the live alert banner and shock detail page
 
-**Person 2 (Analysis)**
-- Compute post-shock outcomes at 1h/6h/24h for all shocks → update `shock_events` in MongoDB
-- Run Gemini categorization on all markets → update `category` field in `market_series` and `shock_events`
-- Compute aggregate stats → store in `shock_results`:
-  - Overall: reversion rates, means, std devs, sample sizes per horizon
-  - By category: same breakdown per category
-  - **Backtest stats**: win rate, average P&L, expected value per $1, max drawdown — overall and by category
-  - **Distribution data**: histogram bin edges + counts for the post-shock move distribution (for the frontend payoff chart)
-- Write the findings paragraph with real numbers
-- Validate: are results sensible? Is reversion rate between 40–70%? Are sample sizes per category ≥5?
+**Person 3 — P&L Heatmap (~3h)**
+- Build `components/PnlHeatmap.tsx` — 2D grid: x = probability (0–100%), y = days to resolution (1–180), color = P&L
+- Uses the same payoff math as PayoffCurve + the time-decay model from ScenarioPanel
+- Green = profit, red = loss, hover shows exact P&L
+- Position size input adjusts the entire grid dynamically
+- Place on shock detail page between PayoffCurve and ScenarioPanel
+- Also: display `ai_analysis` on live alert banner and shock detail page (Person 2 provides the data)
 
-**Person 3 (Frontend)**
-- Build the **Trade Simulator** component:
-  - Position size input ($)
-  - Horizon selector (1h / 6h / 24h)
-  - Output: expected P&L, win rate, best/worst case
-  - Payoff distribution chart (Recharts BarChart showing historical outcome distribution with user's position overlaid)
-- Build **configurable controls** for the main dashboard:
-  - θ (shock threshold) slider: 0.03–0.20, default 0.08
-  - Horizon picker: 1h / 6h / 24h
-  - Category filter: all / politics / sports / crypto / other
-  - These filter the shocks table and recompute displayed stats client-side
-- Start wiring real data: check `/api/shocks`, `/api/stats`, `/api/markets` — replace dummy data as it becomes available
-- New API route: `/api/backtest` — returns backtest stats and distribution data from `shock_results`
-
-### Hours 16–20 · Integration + MVP + Live Monitor
-
-**Person 1**
-- **Build `scripts/live_monitor.py` (CORE — highest priority remaining task)**
-  - Polls Polymarket every 2 min for latest prices on tracked markets
-  - Runs shock detection on fresh data
-  - When new shock detected → writes live alert to `shock_events` with `is_live_alert: true` + historical edge context (win rate, avg P&L for that category)
-  - Keeps `hours_ago` fresh on all recent shocks
-  - **Leave running in terminal during demo**
-- Run `flag_recent_shocks.py` to backfill `is_recent`/`hours_ago` on existing shocks
-- Write `README.md` with hypothesis, methodology, results, tech stack
-- Support Person 3 with data format issues
-
-**Person 2**
-- Validate all results manually — spot-check 5 shocks, confirm reversion values make sense
-- Refine findings text with final numbers
-- Write Devpost project description
-
-**Person 3**
-- Full integration: every component reads from real API routes, no dummy data
-- Trade simulator wired to real backtest distribution data
-- Payoff curve + scenario panel on detail page
-- **Live alert banner** at top of dashboard for `is_live_alert: true` shocks:
-  > 🔴 SHOCK DETECTED 8 min ago — "BTC above $100k by June?" dropped 65% → 53% (-12pp)
-  > Historical edge: 65% win rate | Avg return: $0.034/$1 | **[Analyze this shock →]**
-- Configurable controls dynamically filter the data
-- FindingsBlock component displays Person 2's findings text with injected numbers
-- Deploy to Vercel, point GoDaddy domain
-
-### Hours 20–24 · Portfolio Builder + Polish + Submission
-
-**Person 1**
-- **Keep `live_monitor.py` running** — if a shock fires during the demo, that's the winning moment
+**Person 1 — Support + Demo Prep**
+- Keep `live_monitor.py` running (Person 2 will modify it to add Gemini)
+- Restart monitor after Person 2's changes
 - Polish README with final numbers
 - Help with Devpost submission
-
-**Person 2**
-- Stretch: cross-market shock correlation analysis
-- Finalize Devpost description with final numbers
-
-**Person 3**
-- **Build Portfolio Builder page** (`/portfolio`) — select 2–4 shocks, set position sizes, see combined payoff graph
-- **30-min UI polish pass**: consistent color palette, readable chart labels, smooth transitions, responsive layout
-- **Film 30-sec reel**: show live alert → click through → payoff curve → scenario panel → portfolio builder → end with URL
-- Final `vercel --prod` deploy
-- Submit on Devpost: select Prediction Markets, Most Creative Hack, Best UI/UX
 
 ---
 
 ## 8. Demo Script (3 Minutes)
 
 > **Opening Hook (20 sec)**
-> *"Prediction markets overreact to breaking news. We built a live trading tool that detects those overreactions in real-time on Polymarket, tells you the historical edge, and lets you size the trade before you take it."*
+> *"Prediction markets overreact. We built a live system that detects it, uses AI to explain why it happened, and gives you TradFi-grade tools to decide whether to trade it — all in real-time on Polymarket."*
 >
-> **Live Signal (40 sec)**
-> Point to the terminal running `live_monitor.py`: *"This is polling Polymarket every 2 minutes. When it detects a shock—"* Show a 🔴 LIVE alert on the dashboard. *"—it immediately surfaces it with historical context: win rate, expected P&L, category. This happened X minutes ago."*
+> **Live Signal + AI Analysis (50 sec)**
+> Show the live monitor terminal: *"This is polling Polymarket every 2 minutes."* Show the 🔴 LIVE alert banner with Gemini analysis: *"This shock was detected 8 minutes ago. Our AI analyst says: 'Likely triggered by a BTC spot flash crash. This appears to be an overreaction — high confidence of reversion.' That's Gemini reasoning about the shock in real-time."*
 >
-> **The Trading Tools (60 sec)**
-> Click into the live shock. Show the detail page top to bottom: *"First, the payoff curve — your P&L at every possible resolution outcome."* Drag the scenario sliders: *"What if probability moves to 70%? What if resolution is next week vs. next month?"* Show the trade simulator: *"Historically, Z% of crypto shocks this size revert within 6 hours. Enter $200 — expected P&L is $6.80."* Show the P&L timeline: *"Here's how that position would have evolved hour by hour."*
+> **The Trading Tools (70 sec)**
+> Click into the shock. *"First, the P&L heatmap."* Show the probability × time grid: *"Green is profit, red is loss. You can see exactly where and when this fade trade works — the sweet spot is 2-4 weeks out at 40-60% probability."* Then: *"The payoff curve — P&L at every possible resolution."* Drag scenario sliders: *"What if probability moves to 70%? What if it resolves next week? Outputs update instantly."* Show trade simulator: *"Historically, 60% of crypto shocks this size revert within 6 hours. Enter $200 — expected P&L is $6.80."*
 >
-> **Portfolio (40 sec)**
-> Navigate to Portfolio Builder. Select 3 shocks from different categories. *"Now I have a portfolio of three independent fade bets. Combined payoff graph — the bold line is my total portfolio. Diversification cuts variance by 40%."*
+> **Portfolio (20 sec)**
+> Navigate to Portfolio Builder — select 3 shocks. *"Combined payoff graph — diversification cuts variance by 40%."*
 >
-> **Close (20 sec)**
-> *"ShockTest is a complete trading workflow: detect the signal, analyze the edge, size the position, build the portfolio. All live from Polymarket's API, running at shocktest.xyz."*
+> **Close (10 sec)**
+> *"Detect. Analyze. Visualize. Trade. All live at shocktest.xyz."*
 
 ---
 
@@ -332,13 +303,13 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 | What You Did | How You Say It |
 |-------------|----------------|
 | Shock detection + live monitor | Built a configurable event detection algorithm on Polymarket probability time series, plus a live polling system that detects shocks in real-time and surfaces them with historical edge context |
-| Post-shock analysis + backtest | Designed and ran a quantitative mean-reversion study across 100+ prediction markets, then built a fade-strategy backtest reporting win rate, EV, and drawdown |
+| AI shock analyst | Integrated Gemini into the live detection loop to provide real-time trade intelligence — likely cause, overreaction assessment, and reversion confidence — on every detected shock |
+| P&L heatmap | Built a probability × time P&L heatmap (inspired by optionsprofitcalculator.com) showing the profitable zone for fade positions across all possible outcomes and resolution timelines |
 | Trading tools | Built interactive payoff curves, scenario analysis with time-decay modeling, and a position-sizing simulator that projects P&L from historical reversion distributions |
-| Portfolio builder | Built a multi-market portfolio constructor showing combined payoff graphs with diversification benefit calculations (variance reduction via 1/√N for independent bets) |
-| Category breakdown | Used LLM-based classification (Gemini) to auto-tag market categories, then identified differential reversion patterns suggesting behavioral vs. informational drivers |
-| Full stack delivery | Shipped a live trading signal system (Next.js + Vercel + Python live monitor) integrating Polymarket's API, MongoDB Atlas, Gemini, payoff curves, scenario analysis, and portfolio builder — in 24 hours |
+| Portfolio builder | Built a multi-market portfolio constructor showing combined payoff graphs with diversification benefit calculations |
+| Full stack delivery | Shipped a live trading signal system (Next.js + Vercel + Python live monitor) integrating Polymarket's Gamma API, MongoDB Atlas, Gemini, and 6+ interactive trading tools — in 24 hours |
 
-> **Interview angle:** *"I built a trading signal and decision tool for prediction markets. We found that X% of large Polymarket probability shocks reversed within 6 hours. We then built an interactive simulator where a trader can input a position size and see the expected P&L distribution based on historical data — broken down by market category. It's a research finding turned into a usable trading tool."*
+> **Interview angle:** *"I built a live trading signal system for Polymarket prediction markets. A Python monitor polls for probability shocks every 2 minutes — when it detects one, Gemini analyzes what caused it and whether it's an overreaction. The trader then sees a P&L heatmap across probability and time, interactive scenario sliders, and a backtest-powered trade simulator. We found that 60% of large shocks revert within 6 hours."*
 
 ---
 
@@ -370,14 +341,14 @@ Persons 1 & 2 work in Python — fetching data, detecting shocks, running backte
 
 | Track | Prize | What We Do |
 |-------|-------|-----------|
-| **Prediction Markets** (Polymarket) | $2,000 / $1,000 / $500 | Polymarket Gamma API as primary data source. Trading tool with interactive simulator directly addresses track brief. |
-| **Grand Prize** (YHack) | $4,000 / $2,000 / $1,000 | Automatic eligibility |
+| **Prediction Markets** (Polymarket) | $2,000 / $1,000 / $500 | Gamma API as primary data source. Live shock monitor, **P&L heatmap** (the optionsprofitcalculator.com clone they reference in the brief), payoff curves, scenario analysis, portfolio builder. |
+| **Grand Prize** (YHack) | $4,000 / $2,000 / $1,000 | Automatic eligibility — live AI-powered trading signal system is genuinely impressive for 24h |
 | **MongoDB Atlas** (MLH) | M5Stack IoT Kit per member | Free M0 cluster for all data storage |
-| **Google Gemini** (MLH) | Google Swag Kit per member | Gemini 2.5 Flash auto-categorizes markets |
+| **Google Gemini** (MLH) | Google Swag Kit per member | **Gemini Shock Analyst** — real-time trade intelligence on every detected shock (likely cause, overreaction assessment, reversion confidence). This is real analytical reasoning, not just classification. |
 | **GoDaddy Registry** (MLH) | ~$50 gift card | `shocktest.xyz` via `mlh.link/godaddyregistry` |
-| **Most Creative Hack** (YHack) | $100 | Quant research + trading tool at a hackathon is inherently unusual |
-| **Best UI/UX** (YHack) | $100 | Interactive simulator + configurable controls = strong UX story |
-| **Most Viral Post** (@YHack) | $100 | 30-sec reel of dramatic shock + trade simulator |
+| **Most Creative Hack** (YHack) | $100 | AI-powered live trading signal system for prediction markets — unlike anything else at the hackathon |
+| **Best UI/UX** (YHack) | $100 | **P&L heatmap** (probability × time) is the visual showstopper |
+| **Most Viral Post** (@YHack) | $100 | Film the P&L heatmap updating with a live shock — visually striking |
 
 **Total exposure: up to $6,350 + hardware + swag** across 8 categories.
 
@@ -389,9 +360,22 @@ The existing schema stays the same. Add these fields:
 
 **`shock_events` collection — new fields per shock:**
 ```
-fade_pnl_1h: float | null    // P&L per $1 if you faded this shock (= reversion value)
+fade_pnl_1h: float | null
 fade_pnl_6h: float | null
 fade_pnl_24h: float | null
+is_live_alert: boolean
+detected_at: string | null        // ISO timestamp
+historical_win_rate: float | null
+historical_avg_pnl: float | null
+historical_sample_size: int | null
+ai_analysis: {                    // Gemini shock analyst output
+  likely_cause: string,
+  overreaction_assessment: string,
+  reversion_confidence: "low" | "medium" | "high"
+} | null
+```
+
+**`shock_results` collection — new fields in aggregate_stats:**
 ```
 
 **`shock_results` collection — new fields in aggregate_stats:**

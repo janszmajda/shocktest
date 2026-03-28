@@ -65,48 +65,49 @@ export default function Histogram({ shocks }: HistogramProps) {
   const bins = buildBins(shocks);
   const meanReversion = computeMeanReversion(shocks);
 
-  // Find the bin label closest to x=0 for the reference line
   const zeroBinIndex = bins.findIndex((b) => b.label === "0 to 2");
   const zeroLabel = zeroBinIndex >= 0 ? bins[zeroBinIndex].label : undefined;
 
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">
+      <h2 className="mb-3 text-sm font-semibold text-text-primary">
         Post-Shock Reversion Distribution (6h)
       </h2>
-      <div className="h-72 w-full">
+      <div className="h-72 w-full rounded-lg border border-border bg-surface-1 p-4">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={bins}
-            margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 10, fill: "#55555f" }}
+              stroke="#55555f"
             />
             <YAxis
-              tick={{ fontSize: 12 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 11, fill: "#55555f" }}
+              stroke="#55555f"
               allowDecimals={false}
-              label={{
-                value: "Count",
-                angle: -90,
-                position: "insideLeft",
-                style: { fontSize: 12, fill: "#9ca3af" },
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#1a1a1f",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: "8px",
+                color: "#e8e8ed",
+                fontSize: "12px",
               }}
             />
-            <Tooltip />
             {zeroLabel && (
               <ReferenceLine
                 x={zeroLabel}
-                stroke="#6b7280"
+                stroke="#55555f"
                 strokeWidth={1.5}
                 label={{
                   value: "0",
                   position: "top",
-                  style: { fontSize: 11, fill: "#6b7280" },
+                  style: { fontSize: 10, fill: "#55555f" },
                 }}
               />
             )}
@@ -120,13 +121,13 @@ export default function Histogram({ shocks }: HistogramProps) {
                       : closest,
                   ).label
                 }
-                stroke="#2563eb"
+                stroke="#5b8def"
                 strokeDasharray="6 3"
                 strokeWidth={2}
                 label={{
                   value: `Mean: ${meanReversion.toFixed(1)}pp`,
                   position: "top",
-                  style: { fontSize: 11, fill: "#2563eb" },
+                  style: { fontSize: 10, fill: "#5b8def" },
                 }}
               />
             )}
@@ -134,16 +135,18 @@ export default function Histogram({ shocks }: HistogramProps) {
               {bins.map((bin, idx) => (
                 <Cell
                   key={idx}
-                  fill={bin.isReversion ? "#22c55e" : "#ef4444"}
+                  fill={bin.isReversion ? "#22c78a" : "#f05c5c"}
+                  fillOpacity={0.8}
                 />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-center text-xs text-gray-400">
-        Green = reversion (price moved back) · Red = continuation (price kept
-        going) · Dashed blue = mean reversion
+      <p className="mt-2 text-center text-xs text-text-muted">
+        <span className="text-yes-text">Green</span> = reversion &middot;{" "}
+        <span className="text-no-text">Red</span> = continuation &middot;{" "}
+        <span className="text-accent">Dashed</span> = mean
       </p>
     </div>
   );

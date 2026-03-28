@@ -25,6 +25,8 @@ interface TradeSimulatorProps {
     "6h": DistributionData | null;
     "24h": DistributionData | null;
   };
+  sampleSize?: number;
+  filterLevel?: "tight" | "category" | "all";
 }
 
 function MetricCard({
@@ -37,10 +39,10 @@ function MetricCard({
   positive: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm text-gray-500">{label}</p>
+    <div className="rounded-lg border border-border bg-surface-1 p-4">
+      <p className="text-sm text-text-muted">{label}</p>
       <p
-        className={`mt-1 text-xl font-semibold ${positive ? "text-green-600" : "text-red-600"}`}
+        className={`mt-1 text-xl font-semibold ${positive ? "text-yes-text" : "text-no-text"}`}
       >
         {value}
       </p>
@@ -48,11 +50,19 @@ function MetricCard({
   );
 }
 
+const FILTER_LABELS: Record<string, string> = {
+  tight: "similar shocks (same category, magnitude, direction)",
+  category: "same-category shocks",
+  all: "all historical shocks",
+};
+
 export default function TradeSimulator({
   shockDelta,
   shockCategory,
   backtest,
   distributions,
+  sampleSize,
+  filterLevel,
 }: TradeSimulatorProps) {
   const [positionSize, setPositionSize] = useState(100);
   const [horizon, setHorizon] = useState<Horizon>("6h");
@@ -88,21 +98,31 @@ export default function TradeSimulator({
   }, [distribution, positionSize]);
 
   return (
-    <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+    <div className="space-y-6 rounded-lg border border-border bg-surface-1 p-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-text-primary">
           Fade This Shock?
         </h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Based on historical data for{" "}
-          <span className="font-medium">{shockCategory || "all"}</span> market
-          shocks (|delta| = {(Math.abs(shockDelta) * 100).toFixed(1)}pp)
+        <p className="mt-1 text-sm text-text-muted">
+          Based on{" "}
+          <span className="font-medium">
+            {sampleSize ?? backtest.total_trades} {filterLevel ? FILTER_LABELS[filterLevel] : "historical shocks"}
+          </span>
+          {" "}(|delta| = {(Math.abs(shockDelta) * 100).toFixed(1)}pp
+          {shockCategory ? `, ${shockCategory}` : ""})
         </p>
+        {filterLevel && filterLevel !== "tight" && (
+          <p className="mt-1 text-xs text-amber-600">
+            {filterLevel === "category"
+              ? "Not enough similar shocks — widened to all same-category shocks"
+              : "Not enough similar shocks — using all historical data"}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-text-secondary">
             Position Size ($)
           </label>
           <input
@@ -113,12 +133,12 @@ export default function TradeSimulator({
             }
             min={1}
             max={10000}
-            className="mt-1 w-32 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="mt-1 w-32 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-text-secondary">
             Horizon
           </label>
           <div className="mt-1 flex gap-1">
@@ -128,10 +148,10 @@ export default function TradeSimulator({
                 onClick={() => setHorizon(h)}
                 className={`rounded-md px-3 py-2 text-sm font-medium ${
                   horizon === h
-                    ? "bg-blue-600 text-white"
+                    ? "bg-accent text-white"
                     : distributions[h]
-                      ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      : "bg-gray-50 text-gray-300 cursor-not-allowed"
+                      ? "bg-surface-2 text-text-secondary hover:bg-surface-3"
+                      : "bg-surface-2 text-text-muted cursor-not-allowed"
                 }`}
                 disabled={!distributions[h]}
               >
@@ -172,7 +192,7 @@ export default function TradeSimulator({
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-medium text-gray-500">
+            <h4 className="mb-2 text-sm font-medium text-text-muted">
               Historical Payoff Distribution ({horizon})
             </h4>
             <div className="h-64 w-full">
@@ -181,30 +201,31 @@ export default function TradeSimulator({
                   data={histogramData}
                   margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                   <XAxis
                     dataKey="bin"
-                    tick={{ fontSize: 10 }}
-                    stroke="#9ca3af"
+                    tick={{ fontSize: 10, fill: "#55555f" }}
+                    stroke="#55555f"
                     label={{
                       value: "Reversion (%)",
                       position: "bottom",
                       offset: 0,
-                      style: { fontSize: 11, fill: "#9ca3af" },
+                      style: { fontSize: 11, fill: "#55555f" },
                     }}
                   />
                   <YAxis
-                    tick={{ fontSize: 12 }}
-                    stroke="#9ca3af"
+                    tick={{ fontSize: 11, fill: "#55555f" }}
+                    stroke="#55555f"
                     allowDecimals={false}
                     label={{
                       value: "Count",
                       angle: -90,
                       position: "insideLeft",
-                      style: { fontSize: 11, fill: "#9ca3af" },
+                      style: { fontSize: 11, fill: "#55555f" },
                     }}
                   />
                   <Tooltip
+                    contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
                     formatter={(value, _name, props) => [
                       `${value} shocks (P&L: $${(props.payload as { pnl: string }).pnl})`,
                       "Frequency",
@@ -212,19 +233,19 @@ export default function TradeSimulator({
                   />
                   <ReferenceLine
                     x="0.0"
-                    stroke="#6b7280"
+                    stroke="#55555f"
                     strokeDasharray="3 3"
                     label={{
                       value: "Break Even",
                       position: "top",
-                      style: { fontSize: 10, fill: "#6b7280" },
+                      style: { fontSize: 10, fill: "#55555f" },
                     }}
                   />
                   <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                     {histogramData.map((entry, index) => (
                       <Cell
                         key={index}
-                        fill={entry.isPositive ? "#22c55e" : "#ef4444"}
+                        fill={entry.isPositive ? "#22c78a" : "#f05c5c"}
                       />
                     ))}
                   </Bar>
@@ -235,7 +256,7 @@ export default function TradeSimulator({
         </>
       )}
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-text-muted">
         In-sample backtest only. Ignores transaction costs, slippage, and
         liquidity. Small sample size — edge may not persist. Not investment
         advice.

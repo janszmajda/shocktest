@@ -4,6 +4,8 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import PriceChart from "@/components/PriceChart";
+import PnlHeatmap from "@/components/PnlHeatmap";
+import AiAnalysisBox from "@/components/AiAnalysisBox";
 import PayoffCurve from "@/components/PayoffCurve";
 import ScenarioPanel from "@/components/ScenarioPanel";
 import TradeSimulator from "@/components/TradeSimulator";
@@ -13,13 +15,13 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   DUMMY_SHOCKS,
   DUMMY_PRICE_SERIES,
-  DUMMY_BACKTEST,
+  DUMMY_SIMILAR_STATS,
   DUMMY_STATS,
 } from "@/lib/dummyData";
 import {
   Shock,
   PricePoint,
-  BacktestResponse,
+  SimilarStatsResponse,
   AggregateStats,
 } from "@/lib/types";
 
@@ -40,59 +42,65 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
     DUMMY_SHOCKS.find((s) => s._id === id) ?? DUMMY_SHOCKS[0],
   );
   const [series, setSeries] = useState<PricePoint[]>(DUMMY_PRICE_SERIES);
-  const [backtestData, setBacktestData] =
-    useState<BacktestResponse>(DUMMY_BACKTEST);
+  const [similarStats, setSimilarStats] =
+    useState<SimilarStatsResponse>(DUMMY_SIMILAR_STATS);
   const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
   const [positionSize, setPositionSize] = useState(100);
-  const [advisorLoading, setAdvisorLoading] = useState(false);
-  const [advisorAnalysis, setAdvisorAnalysis] = useState<string | null>(null);
-  const [advisorError, setAdvisorError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/shocks")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((shocks: Shock[]) => {
-          const found = shocks.find((s) => s._id === id);
-          if (found) {
-            setShock(found);
-            return fetch(`/api/markets?id=${found.market_id}`)
-              .then((res) => {
-                if (!res.ok) throw new Error("Failed");
-                return res.json();
-              })
+    async function load() {
+      try {
+        // Fetch shock list + stats in parallel
+        const [shocksRes, statsRes] = await Promise.all([
+          fetch("/api/shocks"),
+          fetch("/api/stats"),
+        ]);
+
+        let foundShock: Shock | undefined;
+
+        if (shocksRes.ok) {
+          const shocks: Shock[] = await shocksRes.json();
+          foundShock = shocks.find((s) => s._id === id);
+          if (foundShock) {
+            setShock(foundShock);
+            // Fetch market series in background
+            fetch(`/api/markets?id=${foundShock.market_id}`)
+              .then((res) => (res.ok ? res.json() : null))
               .then((market) => {
-                if (market?.series?.length > 0) {
-                  setSeries(market.series);
-                }
-              });
+                if (market?.series?.length > 0) setSeries(market.series);
+              })
+              .catch(() => {});
           }
-        })
-        .catch(() => {}),
-      fetch("/api/backtest")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: BacktestResponse) => {
-          if (data.backtest) setBacktestData(data);
-        })
-        .catch(() => {}),
-      fetch("/api/stats")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: AggregateStats) => {
+        }
+
+        if (statsRes.ok) {
+          const data: AggregateStats = await statsRes.json();
           if (data.total_shocks > 0) setStats(data);
-        })
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, [id]);
+        }
+
+        // Now fetch similar stats using the shock's properties
+        const s = foundShock ?? shock;
+        const params = new URLSearchParams({
+          abs_delta: String(s.abs_delta),
+          direction: s.delta > 0 ? "up" : "down",
+          exclude_id: s._id,
+        });
+        if (s.category) params.set("category", s.category);
+
+        const similarRes = await fetch(`/api/similar-stats?${params}`);
+        if (similarRes.ok) {
+          const data: SimilarStatsResponse = await similarRes.json();
+          if (data.backtest) setSimilarStats(data);
+        }
+      } catch {
+        // keep dummy data
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shockT1 = new Date(shock.t1).getTime() / 1000;
   const shockT2 = new Date(shock.t2).getTime() / 1000;
@@ -104,42 +112,8 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
       : shock.p_after + (stats.mean_reversion_6h ?? 0);
 
   const catStats = shock.category
-    ? backtestData.backtest?.by_category[shock.category]
+    ? similarStats.backtest?.by_category[shock.category]
     : null;
-
-  const categoryWinRate = catStats?.win_rate_6h ?? backtestData.backtest?.win_rate_6h ?? null;
-
-  async function askAdvisor() {
-    setAdvisorLoading(true);
-    setAdvisorError(null);
-    setAdvisorAnalysis(null);
-    try {
-      const res = await fetch("/api/shock-advisor", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: shock.question,
-          category: shock.category,
-          p_before: shock.p_before,
-          p_after: shock.p_after,
-          delta: shock.delta,
-          t2: shock.t2,
-          source: shock.source,
-          reversion_1h: shock.reversion_1h,
-          reversion_6h: shock.reversion_6h,
-          reversion_24h: shock.reversion_24h,
-          category_win_rate: categoryWinRate,
-        }),
-      });
-      const data = await res.json() as { analysis?: string; error?: string };
-      if (data.error) throw new Error(data.error);
-      setAdvisorAnalysis(data.analysis ?? null);
-    } catch (e) {
-      setAdvisorError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setAdvisorLoading(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -159,17 +133,17 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="inline-flex items-center text-sm text-blue-600 hover:underline"
+          className="inline-flex items-center text-sm text-accent hover:underline"
         >
           &larr; Back to dashboard
         </Link>
 
         {/* 1. Market title + shock metadata */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-text-primary">
             {shock.question}
           </h2>
-          <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-500">
+          <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
             <span>Source: {shock.source}</span>
             <span>&middot;</span>
             <span>Category: {shock.category ?? "uncategorized"}</span>
@@ -184,12 +158,12 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* Shared position size control */}
-        <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
-          <label className="text-sm font-medium text-gray-700">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-4 py-3">
+          <label className="text-sm font-medium text-text-secondary">
             Position Size:
           </label>
           <div className="flex items-center gap-1">
-            <span className="text-sm text-gray-500">$</span>
+            <span className="text-sm text-text-muted">$</span>
             <input
               type="number"
               value={positionSize}
@@ -200,21 +174,44 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               }
               min={1}
               max={10000}
-              className="w-28 rounded-md border border-gray-300 px-2 py-1 text-sm"
+              className="w-28 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
             />
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-text-muted">
             Shared across all analysis below
           </p>
         </div>
 
         {/* 2. PriceChart */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h3 className="mb-4 text-sm font-medium text-gray-500">
+        <div className="rounded-lg border border-border bg-surface-1 p-6">
+          <h3 className="mb-4 text-sm font-medium text-text-muted">
             Probability Over Time
           </h3>
-          <PriceChart series={series} shockT1={shockT1} shockT2={shockT2} />
+          <PriceChart
+            series={series}
+            shockT1={shockT1}
+            shockT2={shockT2}
+            pBefore={shock.p_before}
+            pAfter={shock.p_after}
+          />
         </div>
+
+        {/* 2b. AI Analysis (if available) */}
+        {"ai_analysis" in shock &&
+          (shock as unknown as { ai_analysis?: { likely_cause: string; overreaction_assessment: string; reversion_confidence: "low" | "medium" | "high" } }).ai_analysis && (
+          <AiAnalysisBox
+            analysis={
+              (shock as unknown as { ai_analysis: { likely_cause: string; overreaction_assessment: string; reversion_confidence: "low" | "medium" | "high" } }).ai_analysis
+            }
+          />
+        )}
+
+        {/* 2c. P&L Heatmap */}
+        <PnlHeatmap
+          entryPrice={shock.p_after}
+          positionSize={positionSize}
+          direction={fadeDirection}
+        />
 
         {/* 3. PayoffCurve */}
         <PayoffCurve
@@ -231,23 +228,25 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           shockDelta={shock.delta}
           positionSize={positionSize}
           category={shock.category}
-          backtestStats={catStats ?? (backtestData.backtest ? {
-            win_rate_6h: backtestData.backtest.win_rate_6h ?? 0.5,
-            avg_pnl_6h: backtestData.backtest.avg_pnl_per_dollar_6h,
+          backtestStats={catStats ?? (similarStats.backtest ? {
+            win_rate_6h: similarStats.backtest.win_rate_6h ?? 0.5,
+            avg_pnl_6h: similarStats.backtest.avg_pnl_per_dollar_6h,
           } : null)}
         />
 
         {/* 5. TradeSimulator */}
-        {backtestData.backtest && (
+        {similarStats.backtest && (
           <TradeSimulator
             shockDelta={shock.delta}
             shockCategory={shock.category}
-            backtest={backtestData.backtest}
+            backtest={similarStats.backtest}
             distributions={{
-              "1h": backtestData.distribution_1h,
-              "6h": backtestData.distribution_6h,
-              "24h": backtestData.distribution_24h,
+              "1h": similarStats.distribution_1h,
+              "6h": similarStats.distribution_6h,
+              "24h": similarStats.distribution_24h,
             }}
+            sampleSize={similarStats.sample_size}
+            filterLevel={similarStats.filter_level}
           />
         )}
 
@@ -261,55 +260,55 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
 
         {/* 7. Post-Shock Outcomes Table */}
         <div>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-text-primary">
             Post-Shock Outcomes
           </h3>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-2">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">
                     Horizon
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
                     Post Move
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
                     Reversion
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
+              <tbody className="divide-y divide-border bg-surface-1">
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     1 hour
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_1h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_1h)}
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     6 hours
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_6h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_6h)}
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     24 hours
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_24h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_24h)}
                   </td>
                 </tr>
@@ -318,47 +317,9 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </div>
 
-        {/* 8. K2 Advisor */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-500">AI Advisor</h3>
-            <button
-              onClick={askAdvisor}
-              disabled={advisorLoading}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {advisorLoading ? "Thinking..." : advisorAnalysis ? "Re-analyze" : "Analyze with K2 →"}
-            </button>
-          </div>
-
-          {!advisorAnalysis && !advisorLoading && !advisorError && (
-            <p className="mt-2 text-sm text-gray-400">
-              Get an AI breakdown of this spike — what caused it, bull/base/bear scenarios, market sentiment, and a trade recommendation.
-            </p>
-          )}
-
-          {advisorLoading && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-gray-400">
-              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              Reasoning through the shock...
-            </div>
-          )}
-
-          {advisorError && (
-            <p className="mt-3 text-sm text-red-500">{advisorError}</p>
-          )}
-
-          {advisorAnalysis && (
-            <p className="mt-3 text-sm leading-relaxed text-gray-700">{advisorAnalysis}</p>
-          )}
-        </div>
-
-        {/* 9. Caveats */}
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs text-gray-400">
+        {/* 8. Caveats */}
+        <div className="rounded-lg border border-border bg-surface-2 p-4">
+          <p className="text-xs text-text-muted">
             All analysis is based on historical data. In-sample backtest only —
             no out-of-sample validation. Ignores transaction costs, slippage, and
             liquidity constraints. Small sample size — edge may not persist. This

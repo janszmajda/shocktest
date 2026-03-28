@@ -1,85 +1,163 @@
 @import "tailwindcss";
 
+/* ── Design tokens as CSS variables ── */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Dark mode (default) */
+  --st-bg: #0d0d0f;
+  --st-s1: #141418;
+  --st-s2: #1a1a1f;
+  --st-s3: #222228;
+  --st-border: rgba(255, 255, 255, 0.07);
+  --st-border-h: rgba(255, 255, 255, 0.14);
+  --st-txt: #e8e8ed;
+  --st-txt2: #8b8b9a;
+  --st-muted: #55555f;
+  --st-yes: #22c78a;
+  --st-yes-dim: rgba(34, 199, 138, 0.12);
+  --st-no: #f05c5c;
+  --st-no-dim: rgba(240, 92, 92, 0.12);
+  --st-accent: #5b8def;
+  --st-accent-dim: rgba(91, 141, 239, 0.12);
+  --st-grid: rgba(255, 255, 255, 0.05);
 }
 
+[data-theme="light"] {
+  --st-bg: #f5f5f7;
+  --st-s1: #ffffff;
+  --st-s2: #f0f0f3;
+  --st-s3: #e8e8ec;
+  --st-border: rgba(0, 0, 0, 0.08);
+  --st-border-h: rgba(0, 0, 0, 0.15);
+  --st-txt: #1a1a2e;
+  --st-txt2: #6b6b7b;
+  --st-muted: #9b9baa;
+  --st-yes: #16a06a;
+  --st-yes-dim: rgba(22, 160, 106, 0.1);
+  --st-no: #d44040;
+  --st-no-dim: rgba(212, 64, 64, 0.1);
+  --st-accent: #4070dd;
+  --st-accent-dim: rgba(64, 112, 221, 0.1);
+  --st-grid: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Body base styles ── */
+html, body {
+  background-color: var(--st-bg);
+  color: var(--st-txt);
+}
+
+/* ── Utility classes (used instead of Tailwind color tokens) ── */
+
+/* Backgrounds */
+.bg-surface-base { background-color: var(--st-bg) !important; }
+.bg-surface-1 { background-color: var(--st-s1) !important; }
+.bg-surface-2 { background-color: var(--st-s2) !important; }
+.bg-surface-3 { background-color: var(--st-s3) !important; }
+.bg-yes-dim { background-color: var(--st-yes-dim) !important; }
+.bg-no-dim { background-color: var(--st-no-dim) !important; }
+.bg-accent { background-color: var(--st-accent) !important; }
+.bg-accent-dim { background-color: var(--st-accent-dim) !important; }
+
+/* Text */
+.text-text-primary { color: var(--st-txt) !important; }
+.text-text-secondary { color: var(--st-txt2) !important; }
+.text-text-muted { color: var(--st-muted) !important; }
+.text-yes-text { color: var(--st-yes) !important; }
+.text-no-text { color: var(--st-no) !important; }
+.text-accent { color: var(--st-accent) !important; }
+
+/* Borders */
+.border-border { border-color: var(--st-border) !important; }
+.border-border-hover { border-color: var(--st-border-h) !important; }
+.border-accent { border-color: var(--st-accent) !important; }
+.divide-border > * + * { border-color: var(--st-border) !important; }
+
+/* Hover states */
+.hover\:bg-surface-2:hover { background-color: var(--st-s2) !important; }
+.hover\:bg-surface-3:hover { background-color: var(--st-s3) !important; }
+.hover\:bg-accent-dim:hover { background-color: var(--st-accent-dim) !important; }
+.hover\:border-border-hover:hover { border-color: var(--st-border-h) !important; }
+.hover\:text-text-primary:hover { color: var(--st-txt) !important; }
+.hover\:text-text-secondary:hover { color: var(--st-txt2) !important; }
+
+/* ── Fonts ── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.font-mono {
+  font-family: var(--font-mono), 'IBM Plex Mono', ui-monospace, monospace;
 }
 
-/* Fade-in animation for page content */
+/* ── Recharts chart colors (used via inline style vars) ── */
+.recharts-cartesian-grid line { stroke: var(--st-grid) !important; }
+.recharts-cartesian-axis-tick text { fill: var(--st-muted) !important; }
+.recharts-cartesian-axis line { stroke: var(--st-muted) !important; }
+.recharts-default-tooltip {
+  background-color: var(--st-s2) !important;
+  border: 1px solid var(--st-border) !important;
+  border-radius: 8px !important;
+  color: var(--st-txt) !important;
+  font-size: 12px !important;
+}
+.recharts-tooltip-item { color: var(--st-txt) !important; }
+.recharts-tooltip-label { color: var(--st-txt2) !important; }
+
+/* ── Fade-in animation ── */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 main > * {
-  animation: fadeIn 0.3s ease-out both;
+  animation: fadeIn 0.25s ease-out both;
 }
-
 main > *:nth-child(1) { animation-delay: 0s; }
-main > *:nth-child(2) { animation-delay: 0.05s; }
-main > *:nth-child(3) { animation-delay: 0.1s; }
-main > *:nth-child(4) { animation-delay: 0.15s; }
-main > *:nth-child(5) { animation-delay: 0.2s; }
-main > *:nth-child(6) { animation-delay: 0.25s; }
-main > *:nth-child(7) { animation-delay: 0.3s; }
-main > *:nth-child(8) { animation-delay: 0.35s; }
-main > *:nth-child(9) { animation-delay: 0.4s; }
-main > *:nth-child(10) { animation-delay: 0.45s; }
+main > *:nth-child(2) { animation-delay: 0.04s; }
+main > *:nth-child(3) { animation-delay: 0.08s; }
+main > *:nth-child(4) { animation-delay: 0.12s; }
+main > *:nth-child(5) { animation-delay: 0.16s; }
+main > *:nth-child(6) { animation-delay: 0.2s; }
+main > *:nth-child(7) { animation-delay: 0.24s; }
+main > *:nth-child(8) { animation-delay: 0.28s; }
 
-/* Snappy range sliders */
+/* ── Range sliders ── */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: #e2e8f0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--st-s3);
   outline: none;
   cursor: pointer;
 }
-
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: #2563eb;
+  background: var(--st-accent);
   cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--st-s1);
   transition: transform 0.1s ease;
 }
-
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
 }
 
-input[type="range"]::-webkit-slider-thumb:active {
-  transform: scale(0.95);
-}
+/* ── Smooth transitions ── */
+button, select, input, a { transition: all 0.15s ease; }
 
-/* Smooth transitions for interactive elements */
-button,
-select,
-input {
-  transition: all 0.15s ease;
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--st-s3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--st-muted); }
+
+/* ── Inputs and selects ── */
+select, input[type="number"], input[type="text"] {
+  background-color: var(--st-s2);
+  border-color: var(--st-border);
+  color: var(--st-txt2);
 }

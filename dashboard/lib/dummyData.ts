@@ -3,6 +3,7 @@ import {
   AggregateStats,
   PricePoint,
   BacktestResponse,
+  SimilarStatsResponse,
 } from "./types";
 
 export const DUMMY_SHOCKS: Shock[] = [
@@ -229,6 +230,15 @@ export const DUMMY_STATS: AggregateStats = {
     },
   },
   backtest: DUMMY_BACKTEST.backtest!,
+};
+
+export const DUMMY_SIMILAR_STATS: SimilarStatsResponse = {
+  backtest: DUMMY_BACKTEST.backtest!,
+  distribution_1h: null,
+  distribution_6h: DUMMY_BACKTEST.distribution_6h,
+  distribution_24h: null,
+  sample_size: 12,
+  filter_level: "tight",
 };
 
 // 100+ points simulating 2-min interval data around a shock

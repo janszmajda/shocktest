@@ -34,11 +34,11 @@ export default function DashboardControls({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-6 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-wrap items-end gap-6 rounded-lg border border-border bg-surface-1 p-4">
       <div className="min-w-[200px]">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-xs font-medium text-text-secondary">
           Shock Threshold (θ):{" "}
-          <span className="font-semibold text-blue-600">
+          <span className="font-mono font-semibold text-accent">
             {(theta * 100).toFixed(0)}pp
           </span>
         </label>
@@ -55,14 +55,14 @@ export default function DashboardControls({
           }}
           className="mt-1 w-full"
         />
-        <div className="flex justify-between text-xs text-gray-400">
+        <div className="flex justify-between text-xs text-text-muted">
           <span>3pp</span>
           <span>20pp</span>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-xs font-medium text-text-secondary">
           Horizon
         </label>
         <div className="mt-1 flex gap-1">
@@ -73,10 +73,10 @@ export default function DashboardControls({
                 setHorizon(h);
                 emitChange(theta, h, category);
               }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-md px-3 py-1.5 font-mono text-xs font-medium ${
                 horizon === h
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-accent text-white"
+                  : "bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary"
               }`}
             >
               {h}
@@ -86,7 +86,7 @@ export default function DashboardControls({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-xs font-medium text-text-secondary">
           Category
         </label>
         <select
@@ -95,7 +95,7 @@ export default function DashboardControls({
             setCategory(e.target.value);
             emitChange(theta, horizon, e.target.value);
           }}
-          className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700"
+          className="mt-1 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-secondary"
         >
           <option value="all">All Categories</option>
           {categories.map((c) => (

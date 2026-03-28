@@ -15,11 +15,10 @@ import {
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { Shock, BacktestResponse } from "@/lib/types";
-import { DUMMY_SHOCKS, DUMMY_BACKTEST } from "@/lib/dummyData";
+import { Shock, SimilarStatsResponse } from "@/lib/types";
+import { DUMMY_SHOCKS } from "@/lib/dummyData";
 
 interface SelectedShock {
-  _id: string;
   market_id: string;
   question: string;
   category: string | null;
@@ -28,50 +27,61 @@ interface SelectedShock {
   positionSize: number;
 }
 
-interface AgentAllocation {
-  shock_id: string;
-  market_id: string;
-  question: string;
-  category: string | null;
-  delta: number;
-  p_after: number;
-  size: number;
-  kelly_fraction: number;
-  rationale: string;
-}
-
 export default function PortfolioPage() {
   const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
   const [selected, setSelected] = useState<SelectedShock[]>([]);
-  const [backtest, setBacktest] = useState<BacktestResponse>(DUMMY_BACKTEST);
+  const [similarStatsMap, setSimilarStatsMap] = useState<
+    Record<string, SimilarStatsResponse>
+  >({});
   const [loading, setLoading] = useState(true);
-  const [bankroll, setBankroll] = useState(500);
-  const [agentLoading, setAgentLoading] = useState(false);
-  const [agentReport, setAgentReport] = useState<string | null>(null);
-  const [agentError, setAgentError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/shocks")
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed");
-          return r.json();
-        })
-        .then((data: Shock[]) => {
-          if (data.length > 0) setAllShocks(data);
-        })
-        .catch(() => {}),
-      fetch("/api/backtest")
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed");
-          return r.json();
-        })
-        .then((data: BacktestResponse) => {
-          if (data.backtest) setBacktest(data);
-        })
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
+    fetch("/api/shocks")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      })
+      .then((data: Shock[]) => {
+        if (data.length > 0) setAllShocks(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
+
+  // Fetch similar-stats whenever selected shocks change
+  useEffect(() => {
+    if (selected.length === 0) return;
+
+    const newIds = selected
+      .map((s) => s.market_id)
+      .filter((id) => !similarStatsMap[id]);
+    if (newIds.length === 0) return;
+
+    Promise.all(
+      newIds.map((marketId) => {
+        const s = selected.find((sel) => sel.market_id === marketId)!;
+        const params = new URLSearchParams({
+          abs_delta: String(Math.abs(s.delta)),
+          direction: s.delta > 0 ? "up" : "down",
+        });
+        if (s.category) params.set("category", s.category);
+        return fetch(`/api/similar-stats?${params}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data: SimilarStatsResponse | null) => ({
+            marketId,
+            data,
+          }));
+      }),
+    ).then((results) => {
+      const updates: Record<string, SimilarStatsResponse> = {};
+      for (const r of results) {
+        if (r.data) updates[r.marketId] = r.data;
+      }
+      if (Object.keys(updates).length > 0) {
+        setSimilarStatsMap((prev) => ({ ...prev, ...updates }));
+      }
+    });
+  }, [selected, similarStatsMap]);
 
   const combinedPayoffByOutcome = useMemo(() => {
     if (selected.length === 0) return [];
@@ -98,69 +108,42 @@ export default function PortfolioPage() {
   }, [selected]);
 
   const portfolioStats = useMemo(() => {
-    if (selected.length === 0 || !backtest?.backtest) return null;
+    if (selected.length === 0) return null;
 
     const totalSize = selected.reduce((sum, s) => sum + s.positionSize, 0);
-    const bt = backtest.backtest;
     const n = selected.length;
-    const expectedPnl = totalSize * bt.avg_pnl_per_dollar_6h;
+
+    // Compute weighted expected P&L from per-shock similar stats
+    let weightedPnl = 0;
+    let weightedWinRate = 0;
+    let totalWeight = 0;
+    let hasStats = false;
+
+    for (const s of selected) {
+      const stats = similarStatsMap[s.market_id];
+      if (stats?.backtest) {
+        hasStats = true;
+        const avgPnl = stats.backtest.avg_pnl_per_dollar_6h;
+        const winRate = stats.backtest.win_rate_6h ?? 0;
+        weightedPnl += s.positionSize * avgPnl;
+        weightedWinRate += s.positionSize * winRate;
+        totalWeight += s.positionSize;
+      }
+    }
+
+    if (!hasStats) return null;
+
     const stdReduction = Math.sqrt(1 / n);
 
     return {
       totalSize,
       numPositions: n,
-      expectedPnl: Number(expectedPnl.toFixed(2)),
-      avgWinRate: bt.win_rate_6h ?? 0,
+      expectedPnl: Number(weightedPnl.toFixed(2)),
+      avgWinRate: totalWeight > 0 ? weightedWinRate / totalWeight : 0,
       diversificationBenefit: `${((1 - stdReduction) * 100).toFixed(0)}% variance reduction`,
       maxLoss: -totalSize,
     };
-  }, [selected, backtest]);
-
-  const buildWithAgent = async () => {
-    setAgentLoading(true);
-    setAgentReport(null);
-    setAgentError(null);
-    try {
-      const res = await fetch("/api/portfolio-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bankroll }),
-      });
-      const data = (await res.json()) as {
-        report?: string;
-        allocations?: AgentAllocation[];
-        error?: string;
-      };
-      if (!res.ok || data.error) {
-        setAgentError(data.error ?? "Agent failed");
-        return;
-      }
-      setAgentReport(data.report ?? null);
-      // Auto-populate selected positions from allocations
-      if (data.allocations && data.allocations.length > 0) {
-        const newSelected: SelectedShock[] = [];
-        for (const alloc of data.allocations.slice(0, 4)) {
-          const match = allShocks.find((s) => s.market_id === alloc.market_id);
-          if (match) {
-            newSelected.push({
-              _id: match._id,
-              market_id: match.market_id,
-              question: match.question,
-              category: match.category,
-              delta: match.delta,
-              p_after: match.p_after,
-              positionSize: alloc.size,
-            });
-          }
-        }
-        if (newSelected.length > 0) setSelected(newSelected);
-      }
-    } catch (e) {
-      setAgentError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setAgentLoading(false);
-    }
-  };
+  }, [selected, similarStatsMap]);
 
   const addShock = (shock: Shock) => {
     if (selected.length >= 4) return;
@@ -168,7 +151,6 @@ export default function PortfolioPage() {
     setSelected([
       ...selected,
       {
-        _id: shock._id,
         market_id: shock.market_id,
         question: shock.question,
         category: shock.category,
@@ -191,6 +173,23 @@ export default function PortfolioPage() {
     );
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  // Sort by most recent, filter by search
+  const filteredShocks = useMemo(() => {
+    const sorted = [...allShocks].sort(
+      (a, b) => new Date(b.t2).getTime() - new Date(a.t2).getTime(),
+    );
+    const searched = searchQuery
+      ? sorted.filter((s) =>
+          s.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.category?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false),
+        )
+      : sorted;
+    return showAll ? searched : searched.slice(0, 20);
+  }, [allShocks, searchQuery, showAll]);
+
   const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#8b5cf6"];
 
   return (
@@ -198,65 +197,13 @@ export default function PortfolioPage() {
       <Header />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-text-primary">
             Fade Portfolio Builder
           </h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-text-muted">
             Select 2-4 shocks to fade simultaneously. See the combined payoff
             and diversification benefit.
           </p>
-        </div>
-
-        {/* AI Portfolio Builder */}
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
-          <div className="mb-1 flex items-center gap-2">
-            <span className="text-lg">🧠</span>
-            <h3 className="text-base font-bold text-indigo-900">AI Portfolio Builder</h3>
-            <span className="rounded-full bg-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700">
-              K2 Think V2
-            </span>
-          </div>
-          <p className="mb-4 text-sm text-indigo-700">
-            Three AI agents — Scanner, Risk Manager, Report Writer — build a
-            Kelly-optimal fade portfolio from current shocks using our backtest data.
-          </p>
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-indigo-800">
-                Bankroll ($)
-              </label>
-              <input
-                type="number"
-                value={bankroll}
-                min={50}
-                max={100000}
-                step={50}
-                onChange={(e) => setBankroll(Number(e.target.value))}
-                className="w-32 rounded-lg border border-indigo-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-            <button
-              onClick={buildWithAgent}
-              disabled={agentLoading}
-              className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {agentLoading ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin">⟳</span> Agents running...
-                </span>
-              ) : (
-                "Build Portfolio with AI →"
-              )}
-            </button>
-          </div>
-          {agentError && (
-            <p className="mt-3 text-sm text-red-600">Error: {agentError}</p>
-          )}
-          {agentReport && (
-            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-indigo-200 bg-white p-4 font-mono text-xs text-gray-800 shadow-inner">
-              {agentReport}
-            </pre>
-          )}
         </div>
 
         {loading ? (
@@ -265,11 +212,31 @@ export default function PortfolioPage() {
           <>
             {/* Shock selector */}
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-700">
-                Available Shocks (click to add)
-              </h3>
-              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2">
-                {allShocks.slice(0, 20).map((shock) => {
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-text-secondary">
+                  Available Shocks — sorted by most recent (click to add)
+                </h3>
+                <span className="text-xs text-text-muted">
+                  {filteredShocks.length} of {allShocks.length} shocks
+                </span>
+              </div>
+              <div className="mb-2 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Search markets or categories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm"
+                />
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="whitespace-nowrap rounded-md border border-border bg-surface-1 px-3 py-1.5 text-sm text-text-secondary hover:bg-surface-2"
+                >
+                  {showAll ? "Show top 20" : "Show all"}
+                </button>
+              </div>
+              <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2">
+                {filteredShocks.map((shock) => {
                   const isSelected = !!selected.find(
                     (s) => s.market_id === shock.market_id,
                   );
@@ -280,25 +247,28 @@ export default function PortfolioPage() {
                       disabled={selected.length >= 4 || isSelected}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
                         isSelected
-                          ? "border-blue-300 bg-blue-50 opacity-60"
-                          : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50"
+                          ? "border-accent bg-accent-dim opacity-60"
+                          : "border-border bg-surface-1 hover:border-accent hover:bg-accent-dim"
                       } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-text-primary">
                         {shock.question.substring(0, 55)}
                         {shock.question.length > 55 ? "..." : ""}
                       </span>
                       <span
-                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-green-600" : "text-red-600"}`}
+                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-yes-text" : "text-no-text"}`}
                       >
                         {shock.delta > 0 ? "+" : ""}
                         {(shock.delta * 100).toFixed(0)}pp
                       </span>
                       {shock.category && (
-                        <span className="ml-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        <span className="ml-2 inline-flex rounded-full bg-surface-2 px-2 py-0.5 text-xs text-text-muted">
                           {shock.category}
                         </span>
                       )}
+                      <span className="ml-2 text-xs text-text-muted">
+                        {new Date(shock.t2).toLocaleDateString()}
+                      </span>
                     </button>
                   );
                 })}
@@ -308,27 +278,37 @@ export default function PortfolioPage() {
             {/* Selected positions */}
             {selected.length > 0 && (
               <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-700">
+                <h3 className="mb-2 text-sm font-semibold text-text-secondary">
                   Your Fade Positions
                 </h3>
                 <div className="space-y-2">
                   {selected.map((s, i) => (
                     <div
-                      key={s._id}
-                      className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3"
+                      key={s.market_id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 p-3"
                     >
                       <div
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: COLORS[i] }}
                       />
-                      <span className="flex-1 text-sm text-gray-900">
+                      <span className="flex-1 text-sm text-text-primary">
                         {s.question.substring(0, 45)}...{" "}
-                        <span className="text-gray-400">
+                        <span className="text-text-muted">
                           ({s.delta > 0 ? "+" : ""}
                           {(s.delta * 100).toFixed(0)}pp)
                         </span>
                       </span>
-                      <label className="text-sm text-gray-500">$</label>
+                      {similarStatsMap[s.market_id] && (
+                        <span className="text-xs text-text-muted">
+                          n={similarStatsMap[s.market_id].sample_size}
+                          {similarStatsMap[s.market_id].filter_level !== "tight" && (
+                            <span className="ml-1 text-amber-500">
+                              ({similarStatsMap[s.market_id].filter_level})
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      <label className="text-sm text-text-muted">$</label>
                       <input
                         type="number"
                         value={s.positionSize}
@@ -338,11 +318,11 @@ export default function PortfolioPage() {
                         onChange={(e) =>
                           updateSize(s.market_id, Number(e.target.value))
                         }
-                        className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                        className="w-20 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
                       />
                       <button
                         onClick={() => removeShock(s.market_id)}
-                        className="text-sm text-red-500 hover:text-red-700"
+                        className="text-sm text-no-text hover:text-no-text"
                       >
                         Remove
                       </button>
@@ -355,35 +335,35 @@ export default function PortfolioPage() {
             {/* Portfolio Stats */}
             {portfolioStats && (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Positions</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Positions</p>
+                  <p className="text-lg font-bold text-text-primary">
                     {portfolioStats.numPositions}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Total Deployed</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Total Deployed</p>
+                  <p className="text-lg font-bold text-text-primary">
                     ${portfolioStats.totalSize}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Expected P&L</p>
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Expected P&L</p>
                   <p
-                    className={`text-lg font-bold ${portfolioStats.expectedPnl >= 0 ? "text-green-600" : "text-red-600"}`}
+                    className={`text-lg font-bold ${portfolioStats.expectedPnl >= 0 ? "text-yes-text" : "text-no-text"}`}
                   >
                     ${portfolioStats.expectedPnl}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Win Rate</p>
-                  <p className="text-lg font-bold text-gray-900">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Win Rate</p>
+                  <p className="text-lg font-bold text-text-primary">
                     {(portfolioStats.avgWinRate * 100).toFixed(0)}%
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-3 text-center">
-                  <p className="text-xs text-gray-500">Diversification</p>
-                  <p className="text-lg font-bold text-blue-600">
+                <div className="rounded-lg border border-border bg-surface-1 p-3 text-center">
+                  <p className="text-xs text-text-muted">Diversification</p>
+                  <p className="text-lg font-bold text-accent">
                     {portfolioStats.diversificationBenefit}
                   </p>
                 </div>
@@ -392,8 +372,8 @@ export default function PortfolioPage() {
 
             {/* Combined Payoff Chart */}
             {combinedPayoffByOutcome.length > 0 && (
-              <div className="rounded-lg border border-gray-200 bg-white p-6">
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">
+              <div className="rounded-lg border border-border bg-surface-1 p-6">
+                <h3 className="mb-4 text-lg font-semibold text-text-primary">
                   Combined Payoff Graph
                 </h3>
                 <div className="h-80 w-full">
@@ -402,32 +382,33 @@ export default function PortfolioPage() {
                       data={combinedPayoffByOutcome}
                       margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis
                         dataKey="move"
                         tickFormatter={(v: number) => `${v}%`}
-                        tick={{ fontSize: 11 }}
-                        stroke="#9ca3af"
+                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                        stroke="var(--text-muted)"
                         label={{
                           value: "Market Move (%)",
                           position: "bottom",
                           offset: 0,
-                          style: { fontSize: 11, fill: "#9ca3af" },
+                          style: { fontSize: 11, fill: "var(--text-muted)" },
                         }}
                       />
                       <YAxis
                         tickFormatter={(v: number) => `$${v}`}
-                        tick={{ fontSize: 11 }}
-                        stroke="#9ca3af"
+                        tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                        stroke="var(--text-muted)"
                       />
                       <Tooltip
+                        contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text-primary)", fontSize: "12px" }}
                         formatter={(value) => [
                           `$${Number(value).toFixed(2)}`,
                         ]}
                       />
                       <ReferenceLine
                         y={0}
-                        stroke="#6b7280"
+                        stroke="var(--text-muted)"
                         strokeDasharray="3 3"
                       />
 
@@ -447,7 +428,7 @@ export default function PortfolioPage() {
                       <Line
                         type="monotone"
                         dataKey="portfolio"
-                        stroke="#2563eb"
+                        stroke="var(--accent)"
                         strokeWidth={3}
                         dot={false}
                         name="Portfolio"
@@ -457,7 +438,7 @@ export default function PortfolioPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="mt-2 text-xs text-gray-400">
+                <p className="mt-2 text-xs text-text-muted">
                   Dashed lines = individual positions. Bold blue = combined
                   portfolio P&L. Diversification reduces variance when shocks are
                   uncorrelated.
@@ -466,14 +447,14 @@ export default function PortfolioPage() {
             )}
 
             {selected.length === 0 && (
-              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center">
-                <p className="text-sm text-gray-400">
+              <div className="rounded-lg border border-dashed border-border bg-surface-2 py-12 text-center">
+                <p className="text-sm text-text-muted">
                   Click on shocks above to build your fade portfolio
                 </p>
               </div>
             )}
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-text-muted">
               Assumes shock outcomes are independent across markets. In-sample
               estimates. Ignores transaction costs, slippage, and liquidity. Not
               investment advice.

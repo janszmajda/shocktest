@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "@/components/Header";
+import LiveAlertBanner from "@/components/LiveAlertBanner";
 import StatsCards from "@/components/StatsCards";
 import FindingsBlock from "@/components/FindingsBlock";
 import ShocksTable from "@/components/ShocksTable";
@@ -26,7 +27,7 @@ export default function Home() {
     category: "all",
   });
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     Promise.all([
       fetch("/api/shocks")
         .then((res) => {
@@ -59,6 +60,13 @@ export default function Home() {
       setLoading(false);
     });
   }, []);
+
+  // Fetch on mount + every 2 minutes
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 120000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   // Client-side filtering based on dashboard controls
   const filteredShocks = useMemo(() => {
@@ -98,6 +106,17 @@ export default function Home() {
     ) as string[];
   }, [allShocks]);
 
+  // Live alerts: shocks with is_live_alert or very recent, sorted most recent first
+  const liveAlerts = useMemo(() => {
+    return allShocks
+      .filter(
+        (s) =>
+          s.is_live_alert === true ||
+          (s.is_recent === true && (s.hours_ago ?? 999) <= 6),
+      )
+      .sort((a, b) => (a.hours_ago ?? 999) - (b.hours_ago ?? 999));
+  }, [allShocks]);
+
   const handleFilterChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
   }, []);
@@ -105,9 +124,11 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      {/* Stats bar — full width, sits right under nav like Polymarket */}
+      {!loading && <StatsCards stats={filteredStats} />}
+      <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         {usingDummy && !loading && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-700">
+          <div className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
             Showing dummy data — real data will appear once the analysis pipeline
             runs.
           </div>
@@ -116,15 +137,17 @@ export default function Home() {
           <LoadingSpinner />
         ) : (
           <>
+            <LiveAlertBanner alerts={liveAlerts} />
             <DashboardControls
               categories={categories}
               onFilterChange={handleFilterChange}
             />
-            <StatsCards stats={filteredStats} />
             <FindingsBlock stats={filteredStats} />
             <ShocksTable shocks={filteredShocks} />
-            <Histogram shocks={filteredShocks} />
-            <CategoryBreakdown stats={stats} />
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <Histogram shocks={filteredShocks} />
+              <CategoryBreakdown stats={stats} />
+            </div>
           </>
         )}
       </main>

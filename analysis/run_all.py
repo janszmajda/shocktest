@@ -11,10 +11,12 @@ Usage:
     python analysis/run_all.py                    # full pipeline
     python analysis/run_all.py --skip-categorize  # skip Gemini (use cached categories)
     python analysis/run_all.py --skip-detect      # skip detection (re-run analysis only)
+    python analysis/run_all.py --loop 120         # re-run every 120 seconds
 """
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -74,5 +76,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run full ShockTest analysis pipeline")
     parser.add_argument("--skip-detect", action="store_true", help="Skip shock detection")
     parser.add_argument("--skip-categorize", action="store_true", help="Skip Gemini categorization")
+    parser.add_argument(
+        "--loop", type=int, metavar="SECONDS", default=0, help="Re-run pipeline every N seconds (e.g. --loop 120)"
+    )
     args = parser.parse_args()
+
     run_all(skip_detect=args.skip_detect, skip_categorize=args.skip_categorize)
+
+    if args.loop > 0:
+        while True:
+            print(f"\nSleeping {args.loop}s before next run...")
+            time.sleep(args.loop)
+            run_all(skip_detect=args.skip_detect, skip_categorize=args.skip_categorize)
