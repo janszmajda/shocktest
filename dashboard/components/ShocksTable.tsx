@@ -146,7 +146,21 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
                   {formatDelta(shock.delta)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                  {new Date(shock.t2).toLocaleDateString()}
+                  {(() => {
+                    const hoursAgo =
+                      (Date.now() - new Date(shock.t2).getTime()) / 3600000;
+                    if (hoursAgo < 48) {
+                      return (
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 animate-pulse">
+                            LIVE
+                          </span>
+                          {Math.round(hoursAgo)}h ago
+                        </span>
+                      );
+                    }
+                    return new Date(shock.t2).toLocaleDateString();
+                  })()}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-700">
                   {formatReversion(shock.reversion_6h)}
