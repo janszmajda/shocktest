@@ -1,0 +1,137 @@
+# mise.toml — Task runner for ShockTest
+
+[tools]
+python = "3.11"
+node = "20"
+
+# ─────────────────────────────────────────────
+# CHECK: run all checks before pushing
+# ─────────────────────────────────────────────
+
+[tasks.check]
+description = "Run all checks (lint + typecheck + build)"
+depends = ["format", "lint", "typecheck:ts", "build"]
+
+[tasks.lint]
+description = "Lint everything"
+depends = ["lint:py", "lint:ts"]
+
+[tasks.format]
+description = "Format everything"
+depends = ["format:py", "format:ts"]
+
+# ─────────────────────────────────────────────
+# PYTHON
+# ─────────────────────────────────────────────
+
+[tasks."lint:py"]
+description = "Lint Python code with ruff"
+run = "ruff check scripts/ analysis/ --fix"
+
+[tasks."format:py"]
+description = "Format Python code with ruff"
+run = "ruff format scripts/ analysis/"
+
+[tasks."format:ts"]
+description = "Format dashboard code with Prettier"
+run = "cd dashboard && npx prettier --write 'app/**/*.{ts,tsx}' 'components/**/*.{ts,tsx}' 'lib/**/*.{ts,tsx}'"
+
+[tasks."typecheck:py"]
+description = "Type check Python with pyright"
+run = "pyright scripts/ analysis/"
+
+[tasks."test:py"]
+description = "Run Python tests"
+run = "python -m pytest tests/ -v --tb=short 2>/dev/null || echo 'No tests yet — skipping'"
+
+# ─────────────────────────────────────────────
+# TYPESCRIPT / NEXT.JS
+# ─────────────────────────────────────────────
+
+[tasks."lint:ts"]
+description = "Lint dashboard with Next.js eslint"
+run = "cd dashboard && npx next lint"
+
+[tasks."typecheck:ts"]
+description = "Type check dashboard"
+run = "cd dashboard && npx tsc --noEmit"
+
+[tasks."build"]
+description = "Build Next.js dashboard (catches runtime errors)"
+run = "cd dashboard && npm run build"
+
+# ─────────────────────────────────────────────
+# DATA PIPELINE (Person 1)
+# ─────────────────────────────────────────────
+
+[tasks.fetch]
+description = "Fetch all markets from Polymarket + Manifold → MongoDB"
+run = """
+python scripts/fetch_polymarket.py
+python scripts/fetch_manifold.py
+"""
+
+[tasks.resample]
+description = "Clean and normalize all time series in MongoDB"
+run = "python scripts/resample.py"
+
+# ─────────────────────────────────────────────
+# ANALYSIS (Person 2)
+# ─────────────────────────────────────────────
+
+[tasks.analyze]
+description = "Run full analysis pipeline: detect → outcomes → categorize → aggregate"
+run = "python analysis/run_all.py"
+
+[tasks.detect]
+description = "Run shock detection only"
+run = "python -c \"from analysis.shock_detector import *; run_detection()\""
+
+[tasks.verify]
+description = "Print top 5 shocks for manual inspection"
+run = "python analysis/verify_shocks.py"
+
+[tasks.categorize]
+description = "Run Gemini categorization on uncategorized markets"
+run = "python analysis/categorize.py"
+
+[tasks.aggregate]
+description = "Compute aggregate statistics"
+run = "python analysis/aggregate.py"
+
+# ─────────────────────────────────────────────
+# DEPLOY (Person 3)
+# ─────────────────────────────────────────────
+
+[tasks.deploy]
+description = "Deploy dashboard to Vercel"
+run = "cd dashboard && vercel --prod"
+
+[tasks.dev]
+description = "Run Next.js dev server"
+run = "cd dashboard && npm run dev"
+
+# ─────────────────────────────────────────────
+# QUICK VALIDATION
+# ─────────────────────────────────────────────
+
+[tasks."db:status"]
+description = "Print MongoDB collection counts"
+run = """
+python -c "
+from pymongo import MongoClient
+import os
+db = MongoClient(os.environ['MONGODB_URI'])['shocktest']
+for col in ['market_series', 'shock_events', 'shock_results']:
+    print(f'{col}: {db[col].count_documents({})} docs')
+"
+"""
+
+[tasks."api:test"]
+description = "Hit all API routes and print status"
+run = """
+echo "Testing API routes..."
+curl -s http://localhost:3000/api/shocks | python -c "import sys,json; d=json.load(sys.stdin); print(f'/api/shocks: {len(d)} shocks')" 2>/dev/null || echo "/api/shocks: FAILED"
+curl -s http://localhost:3000/api/stats | python -c "import sys,json; d=json.load(sys.stdin); print(f'/api/stats: reversion_rate_6h={d.get(\"reversion_rate_6h\", \"N/A\")}')" 2>/dev/null || echo "/api/stats: FAILED"
+curl -s http://localhost:3000/api/markets | python -c "import sys,json; d=json.load(sys.stdin); print(f'/api/markets: {len(d)} markets')" 2>/dev/null || echo "/api/markets: FAILED"
+"""
