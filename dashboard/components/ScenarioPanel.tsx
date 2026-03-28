@@ -96,7 +96,7 @@ export default function ScenarioPanel({
           <input
             type="range"
             min={1}
-            max={180}
+            max={30}
             value={daysToResolution}
             onChange={(e) => setDaysToResolution(Number(e.target.value))}
             className="mt-1 w-full"
