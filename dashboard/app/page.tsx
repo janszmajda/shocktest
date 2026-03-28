@@ -1,22 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "@/components/Header";
 import StatsCards from "@/components/StatsCards";
 import FindingsBlock from "@/components/FindingsBlock";
 import ShocksTable from "@/components/ShocksTable";
 import Histogram from "@/components/Histogram";
 import CategoryBreakdown from "@/components/CategoryBreakdown";
+import DashboardControls, {
+  DashboardFilters,
+} from "@/components/DashboardControls";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
 import { Shock, AggregateStats } from "@/lib/types";
 
 export default function Home() {
-  const [shocks, setShocks] = useState<Shock[]>(DUMMY_SHOCKS);
+  const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
   const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
   const [usingDummy, setUsingDummy] = useState(true);
+  const [filters, setFilters] = useState<DashboardFilters>({
+    theta: 0.08,
+    horizon: "6h",
+    category: "all",
+  });
 
   useEffect(() => {
     Promise.all([
@@ -27,7 +35,7 @@ export default function Home() {
         })
         .then((data: Shock[]) => {
           if (data.length > 0) {
-            setShocks(data);
+            setAllShocks(data);
             return true;
           }
           return false;
@@ -52,6 +60,48 @@ export default function Home() {
     });
   }, []);
 
+  // Client-side filtering based on dashboard controls
+  const filteredShocks = useMemo(() => {
+    return allShocks.filter((s) => {
+      if (s.abs_delta < filters.theta) return false;
+      if (filters.category !== "all" && s.category !== filters.category)
+        return false;
+      return true;
+    });
+  }, [allShocks, filters]);
+
+  // Recompute stats from filtered shocks
+  const filteredStats = useMemo((): AggregateStats => {
+    if (filteredShocks.length === 0) return stats;
+
+    const horizonKey = `reversion_${filters.horizon}` as keyof Shock;
+    const revValues = filteredShocks
+      .map((s) => s[horizonKey] as number | null)
+      .filter((v): v is number => v !== null);
+
+    if (revValues.length === 0) return stats;
+
+    const reversionRate = revValues.filter((v) => v > 0).length / revValues.length;
+    const meanReversion = revValues.reduce((a, b) => a + b, 0) / revValues.length;
+
+    return {
+      ...stats,
+      total_shocks: filteredShocks.length,
+      reversion_rate_6h: reversionRate,
+      mean_reversion_6h: meanReversion,
+    };
+  }, [filteredShocks, stats, filters.horizon]);
+
+  const categories = useMemo(() => {
+    return Array.from(
+      new Set(allShocks.map((s) => s.category).filter(Boolean)),
+    ) as string[];
+  }, [allShocks]);
+
+  const handleFilterChange = useCallback((newFilters: DashboardFilters) => {
+    setFilters(newFilters);
+  }, []);
+
   return (
     <>
       <Header />
@@ -66,10 +116,14 @@ export default function Home() {
           <LoadingSpinner />
         ) : (
           <>
-            <StatsCards stats={stats} />
-            <FindingsBlock stats={stats} />
-            <ShocksTable shocks={shocks} />
-            <Histogram shocks={shocks} />
+            <DashboardControls
+              categories={categories}
+              onFilterChange={handleFilterChange}
+            />
+            <StatsCards stats={filteredStats} />
+            <FindingsBlock stats={filteredStats} />
+            <ShocksTable shocks={filteredShocks} />
+            <Histogram shocks={filteredShocks} />
             <CategoryBreakdown stats={stats} />
           </>
         )}

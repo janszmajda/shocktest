@@ -1,4 +1,9 @@
-import { Shock, AggregateStats, PricePoint } from "./types";
+import {
+  Shock,
+  AggregateStats,
+  PricePoint,
+  BacktestResponse,
+} from "./types";
 
 export const DUMMY_SHOCKS: Shock[] = [
   {
@@ -155,6 +160,34 @@ export const DUMMY_SHOCKS: Shock[] = [
   },
 ];
 
+export const DUMMY_BACKTEST: BacktestResponse = {
+  backtest: {
+    win_rate_1h: 0.62,
+    win_rate_6h: 0.68,
+    win_rate_24h: 0.55,
+    avg_pnl_per_dollar_6h: 0.034,
+    max_drawdown_6h: -0.12,
+    total_trades: 47,
+    by_category: {
+      politics: { win_rate_6h: 0.72, avg_pnl_6h: 0.041, sample_size: 18 },
+      crypto: { win_rate_6h: 0.6, avg_pnl_6h: 0.029, sample_size: 15 },
+      sports: { win_rate_6h: 0.63, avg_pnl_6h: 0.032, sample_size: 8 },
+      other: { win_rate_6h: 0.67, avg_pnl_6h: 0.035, sample_size: 6 },
+    },
+  },
+  distribution_1h: null,
+  distribution_6h: {
+    bin_edges: [-0.12, -0.09, -0.06, -0.03, 0, 0.03, 0.06, 0.09, 0.12, 0.15],
+    bin_counts: [1, 2, 4, 8, 6, 10, 8, 5, 3],
+    percentiles: { p10: -0.04, p25: 0.01, p50: 0.03, p75: 0.06, p90: 0.1 },
+    mean: 0.034,
+    std: 0.052,
+    min: -0.12,
+    max: 0.15,
+  },
+  distribution_24h: null,
+};
+
 export const DUMMY_STATS: AggregateStats = {
   _id: "aggregate_stats",
   total_shocks: 47,
@@ -195,6 +228,7 @@ export const DUMMY_STATS: AggregateStats = {
       sample_size_6h: 6,
     },
   },
+  backtest: DUMMY_BACKTEST.backtest!,
 };
 
 // 100+ points simulating 2-min interval data around a shock

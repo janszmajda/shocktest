@@ -4,10 +4,11 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import PriceChart from "@/components/PriceChart";
+import TradeSimulator from "@/components/TradeSimulator";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { DUMMY_SHOCKS, DUMMY_PRICE_SERIES } from "@/lib/dummyData";
-import { Shock, PricePoint } from "@/lib/types";
+import { DUMMY_SHOCKS, DUMMY_PRICE_SERIES, DUMMY_BACKTEST } from "@/lib/dummyData";
+import { Shock, PricePoint, BacktestResponse } from "@/lib/types";
 
 interface ShockDetailPageProps {
   params: Promise<{ id: string }>;
@@ -26,36 +27,48 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
     DUMMY_SHOCKS.find((s) => s._id === id) ?? DUMMY_SHOCKS[0],
   );
   const [series, setSeries] = useState<PricePoint[]>(DUMMY_PRICE_SERIES);
+  const [backtestData, setBacktestData] = useState<BacktestResponse>(DUMMY_BACKTEST);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try fetching real shock data
-    fetch("/api/shocks")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed");
-        return res.json();
-      })
-      .then((shocks: Shock[]) => {
-        const found = shocks.find((s) => s._id === id);
-        if (found) {
-          setShock(found);
-          // Fetch the market's price series
-          return fetch(`/api/markets?id=${found.market_id}`)
-            .then((res) => {
-              if (!res.ok) throw new Error("Failed");
-              return res.json();
-            })
-            .then((market) => {
-              if (market?.series?.length > 0) {
-                setSeries(market.series);
-              }
-            });
-        }
-      })
-      .catch(() => {
-        // Keep dummy data
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      // Fetch real shock data
+      fetch("/api/shocks")
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed");
+          return res.json();
+        })
+        .then((shocks: Shock[]) => {
+          const found = shocks.find((s) => s._id === id);
+          if (found) {
+            setShock(found);
+            // Fetch the market's price series
+            return fetch(`/api/markets?id=${found.market_id}`)
+              .then((res) => {
+                if (!res.ok) throw new Error("Failed");
+                return res.json();
+              })
+              .then((market) => {
+                if (market?.series?.length > 0) {
+                  setSeries(market.series);
+                }
+              });
+          }
+        })
+        .catch(() => {}),
+      // Fetch backtest data
+      fetch("/api/backtest")
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed");
+          return res.json();
+        })
+        .then((data: BacktestResponse) => {
+          if (data.backtest) {
+            setBacktestData(data);
+          }
+        })
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, [id]);
 
   const shockT1 = new Date(shock.t1).getTime() / 1000;
@@ -108,6 +121,15 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </h3>
           <PriceChart series={series} shockT1={shockT1} shockT2={shockT2} />
         </div>
+
+        {backtestData.backtest && backtestData.distribution_6h && (
+          <TradeSimulator
+            shockDelta={shock.delta}
+            shockCategory={shock.category}
+            backtest={backtestData.backtest}
+            distribution={backtestData.distribution_6h}
+          />
+        )}
 
         <div>
           <h3 className="mb-4 text-lg font-semibold text-gray-900">
