@@ -45,6 +45,9 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
   const [positionSize, setPositionSize] = useState(100);
+  const [advisorLoading, setAdvisorLoading] = useState(false);
+  const [advisorAnalysis, setAdvisorAnalysis] = useState<string | null>(null);
+  const [advisorError, setAdvisorError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -103,6 +106,40 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   const catStats = shock.category
     ? backtestData.backtest?.by_category[shock.category]
     : null;
+
+  const categoryWinRate = catStats?.win_rate_6h ?? backtestData.backtest?.win_rate_6h ?? null;
+
+  async function askAdvisor() {
+    setAdvisorLoading(true);
+    setAdvisorError(null);
+    setAdvisorAnalysis(null);
+    try {
+      const res = await fetch("/api/shock-advisor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: shock.question,
+          category: shock.category,
+          p_before: shock.p_before,
+          p_after: shock.p_after,
+          delta: shock.delta,
+          t2: shock.t2,
+          source: shock.source,
+          reversion_1h: shock.reversion_1h,
+          reversion_6h: shock.reversion_6h,
+          reversion_24h: shock.reversion_24h,
+          category_win_rate: categoryWinRate,
+        }),
+      });
+      const data = await res.json() as { analysis?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+      setAdvisorAnalysis(data.analysis ?? null);
+    } catch (e) {
+      setAdvisorError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAdvisorLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -281,7 +318,45 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </div>
 
-        {/* 8. Caveats */}
+        {/* 8. K2 Advisor */}
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500">AI Advisor</h3>
+            <button
+              onClick={askAdvisor}
+              disabled={advisorLoading}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {advisorLoading ? "Thinking..." : advisorAnalysis ? "Re-analyze" : "Analyze with K2 →"}
+            </button>
+          </div>
+
+          {!advisorAnalysis && !advisorLoading && !advisorError && (
+            <p className="mt-2 text-sm text-gray-400">
+              Get an AI breakdown of this spike — what caused it, bull/base/bear scenarios, market sentiment, and a trade recommendation.
+            </p>
+          )}
+
+          {advisorLoading && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-400">
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Reasoning through the shock...
+            </div>
+          )}
+
+          {advisorError && (
+            <p className="mt-3 text-sm text-red-500">{advisorError}</p>
+          )}
+
+          {advisorAnalysis && (
+            <p className="mt-3 text-sm leading-relaxed text-gray-700">{advisorAnalysis}</p>
+          )}
+        </div>
+
+        {/* 9. Caveats */}
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
           <p className="text-xs text-gray-400">
             All analysis is based on historical data. In-sample backtest only —

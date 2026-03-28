@@ -19,6 +19,7 @@ import { Shock, BacktestResponse } from "@/lib/types";
 import { DUMMY_SHOCKS, DUMMY_BACKTEST } from "@/lib/dummyData";
 
 interface SelectedShock {
+  _id: string;
   market_id: string;
   question: string;
   category: string | null;
@@ -27,11 +28,27 @@ interface SelectedShock {
   positionSize: number;
 }
 
+interface AgentAllocation {
+  shock_id: string;
+  market_id: string;
+  question: string;
+  category: string | null;
+  delta: number;
+  p_after: number;
+  size: number;
+  kelly_fraction: number;
+  rationale: string;
+}
+
 export default function PortfolioPage() {
   const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
   const [selected, setSelected] = useState<SelectedShock[]>([]);
   const [backtest, setBacktest] = useState<BacktestResponse>(DUMMY_BACKTEST);
   const [loading, setLoading] = useState(true);
+  const [bankroll, setBankroll] = useState(500);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentReport, setAgentReport] = useState<string | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -99,12 +116,59 @@ export default function PortfolioPage() {
     };
   }, [selected, backtest]);
 
+  const buildWithAgent = async () => {
+    setAgentLoading(true);
+    setAgentReport(null);
+    setAgentError(null);
+    try {
+      const res = await fetch("/api/portfolio-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankroll }),
+      });
+      const data = (await res.json()) as {
+        report?: string;
+        allocations?: AgentAllocation[];
+        error?: string;
+      };
+      if (!res.ok || data.error) {
+        setAgentError(data.error ?? "Agent failed");
+        return;
+      }
+      setAgentReport(data.report ?? null);
+      // Auto-populate selected positions from allocations
+      if (data.allocations && data.allocations.length > 0) {
+        const newSelected: SelectedShock[] = [];
+        for (const alloc of data.allocations.slice(0, 4)) {
+          const match = allShocks.find((s) => s.market_id === alloc.market_id);
+          if (match) {
+            newSelected.push({
+              _id: match._id,
+              market_id: match.market_id,
+              question: match.question,
+              category: match.category,
+              delta: match.delta,
+              p_after: match.p_after,
+              positionSize: alloc.size,
+            });
+          }
+        }
+        if (newSelected.length > 0) setSelected(newSelected);
+      }
+    } catch (e) {
+      setAgentError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
   const addShock = (shock: Shock) => {
     if (selected.length >= 4) return;
     if (selected.find((s) => s.market_id === shock.market_id)) return;
     setSelected([
       ...selected,
       {
+        _id: shock._id,
         market_id: shock.market_id,
         question: shock.question,
         category: shock.category,
@@ -143,6 +207,58 @@ export default function PortfolioPage() {
           </p>
         </div>
 
+        {/* AI Portfolio Builder */}
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-lg">🧠</span>
+            <h3 className="text-base font-bold text-indigo-900">AI Portfolio Builder</h3>
+            <span className="rounded-full bg-indigo-200 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              K2 Think V2
+            </span>
+          </div>
+          <p className="mb-4 text-sm text-indigo-700">
+            Three AI agents — Scanner, Risk Manager, Report Writer — build a
+            Kelly-optimal fade portfolio from current shocks using our backtest data.
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-indigo-800">
+                Bankroll ($)
+              </label>
+              <input
+                type="number"
+                value={bankroll}
+                min={50}
+                max={100000}
+                step={50}
+                onChange={(e) => setBankroll(Number(e.target.value))}
+                className="w-32 rounded-lg border border-indigo-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <button
+              onClick={buildWithAgent}
+              disabled={agentLoading}
+              className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {agentLoading ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin">⟳</span> Agents running...
+                </span>
+              ) : (
+                "Build Portfolio with AI →"
+              )}
+            </button>
+          </div>
+          {agentError && (
+            <p className="mt-3 text-sm text-red-600">Error: {agentError}</p>
+          )}
+          {agentReport && (
+            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-indigo-200 bg-white p-4 font-mono text-xs text-gray-800 shadow-inner">
+              {agentReport}
+            </pre>
+          )}
+        </div>
+
         {loading ? (
           <LoadingSpinner />
         ) : (
@@ -159,7 +275,7 @@ export default function PortfolioPage() {
                   );
                   return (
                     <button
-                      key={shock.market_id}
+                      key={shock._id}
                       onClick={() => addShock(shock)}
                       disabled={selected.length >= 4 || isSelected}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
@@ -198,7 +314,7 @@ export default function PortfolioPage() {
                 <div className="space-y-2">
                   {selected.map((s, i) => (
                     <div
-                      key={s.market_id}
+                      key={s._id}
                       className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3"
                     >
                       <div
