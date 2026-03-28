@@ -1,8 +1,11 @@
 # mise.toml — Task runner for ShockTest
 
 [tools]
-python = "3.11"
+python = "3.13"
 node = "20"
+
+[env]
+_.file = ".env"
 
 # ─────────────────────────────────────────────
 # CHECK: run all checks before pushing
@@ -117,15 +120,7 @@ run = "cd dashboard && npm run dev"
 
 [tasks."db:status"]
 description = "Print MongoDB collection counts"
-run = """
-python -c "
-from pymongo import MongoClient
-import os
-db = MongoClient(os.environ['MONGODB_URI'])['shocktest']
-for col in ['market_series', 'shock_events', 'shock_results']:
-    print(f'{col}: {db[col].count_documents({})} docs')
-"
-"""
+run = "python scripts/db_status.py"
 
 [tasks."api:test"]
 description = "Hit all API routes and print status"
