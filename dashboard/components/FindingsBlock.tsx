@@ -12,28 +12,35 @@ export default function FindingsBlock({ stats }: FindingsBlockProps) {
     return (
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
         <p className="text-sm text-yellow-800">
-          Waiting for analysis results. Stats will appear here once Person 2
-          runs the analysis pipeline.
+          Waiting for analysis results. Stats will appear here once the analysis
+          pipeline runs.
         </p>
       </div>
     );
   }
 
+  const winRate = stats.backtest?.win_rate_6h;
+
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-      <p className="text-sm leading-relaxed text-blue-900">
-        <strong>Finding:</strong> In a sample of{" "}
-        <strong>{stats.total_shocks} shocks</strong> across{" "}
-        <strong>{stats.total_markets} prediction markets</strong>,{" "}
-        <strong>{(rate6h * 100).toFixed(0)}%</strong> showed mean reversion
-        within 6 hours, with an average magnitude of{" "}
-        <strong>{(mean6h * 100).toFixed(1)} percentage points</strong>.
-        {stats.by_category?.politics && (
+    <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4">
+      <p className="text-base leading-relaxed text-blue-900">
+        Across <strong>{stats.total_shocks}</strong> probability shocks in{" "}
+        <strong>{stats.total_markets}</strong> markets, we found that{" "}
+        <strong>{(rate6h * 100).toFixed(0)}%</strong> reverted within 6 hours
+        {winRate !== null && winRate !== undefined && (
           <>
             {" "}
-            Political markets reverted at a higher rate (
-            {(stats.by_category.politics.reversion_rate_6h! * 100).toFixed(0)}
-            %) than the overall average.
+            — with a simulated fade strategy producing a{" "}
+            <strong>{(winRate * 100).toFixed(0)}%</strong> win rate
+          </>
+        )}
+        .
+        {stats.by_category?.politics?.reversion_rate_6h != null && (
+          <>
+            {" "}
+            Political markets reverted at{" "}
+            {(stats.by_category.politics.reversion_rate_6h * 100).toFixed(0)}%
+            vs. the overall average.
           </>
         )}
       </p>
