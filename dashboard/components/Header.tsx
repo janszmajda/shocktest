@@ -3,18 +3,31 @@ import Link from "next/link";
 export default function Header() {
   return (
     <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <Link href="/" className="block">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            ShockTest
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Do Prediction Markets Overreact?
-          </p>
-          <p className="mt-0.5 text-xs text-gray-400">
-            Analyzing mean reversion in Polymarket probability shocks
-          </p>
-        </Link>
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between">
+          <Link href="/" className="block">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              ShockTest
+            </h1>
+            <p className="text-xs text-gray-400">
+              Detect overreactions. Visualize the edge. Size the trade.
+            </p>
+          </Link>
+          <nav className="flex items-center gap-1">
+            <Link
+              href="/"
+              className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/portfolio"
+              className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            >
+              Portfolio Builder
+            </Link>
+          </nav>
+        </div>
       </div>
     </header>
   );
