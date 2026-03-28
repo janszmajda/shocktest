@@ -56,4 +56,45 @@ export interface AggregateStats {
   sample_size_6h: number;
   sample_size_24h: number;
   by_category: Record<string, CategoryStats>;
+  backtest?: BacktestStats;
+}
+
+export interface BacktestStats {
+  win_rate_1h: number | null;
+  win_rate_6h: number | null;
+  win_rate_24h: number | null;
+  avg_pnl_per_dollar_6h: number;
+  max_drawdown_6h: number;
+  total_trades: number;
+  by_category: Record<
+    string,
+    {
+      win_rate_6h: number;
+      avg_pnl_6h: number;
+      sample_size: number;
+    }
+  >;
+}
+
+export interface DistributionData {
+  bin_edges: number[];
+  bin_counts: number[];
+  percentiles: {
+    p10: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p90: number;
+  };
+  mean: number;
+  std: number;
+  min: number;
+  max: number;
+}
+
+export interface BacktestResponse {
+  backtest: BacktestStats | null;
+  distribution_1h: DistributionData | null;
+  distribution_6h: DistributionData | null;
+  distribution_24h: DistributionData | null;
 }
