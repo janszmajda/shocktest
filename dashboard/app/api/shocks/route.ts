@@ -12,7 +12,6 @@ export async function GET() {
       .collection("shock_events")
       .find({})
       .sort({ abs_delta: -1 })
-      .limit(100)
       .toArray();
 
     return NextResponse.json(shocks);
