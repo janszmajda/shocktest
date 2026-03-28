@@ -36,12 +36,18 @@ LOOKBACK_POINTS = 30  # recent price points to scan for shocks
 
 
 def fetch_latest_prices() -> int:
-    """Fetch latest prices for all tracked Polymarket markets via CLOB API."""
+    """Fetch latest prices for active Polymarket markets via CLOB API.
+
+    Only polls the top 100 markets by volume to keep cycle time under 2 minutes.
+    """
     markets = list(
-        db["market_series"].find(
+        db["market_series"]
+        .find(
             {"source": "polymarket"},
-            {"market_id": 1, "token_id": 1, "question": 1, "category": 1},
+            {"market_id": 1, "token_id": 1, "question": 1, "category": 1, "volume": 1},
         )
+        .sort("volume", -1)
+        .limit(100)
     )
 
     updated = 0
@@ -81,7 +87,7 @@ def fetch_latest_prices() -> int:
                 )
                 updated += 1
 
-            time.sleep(0.3)  # rate limit
+            time.sleep(0.1)  # rate limit
         except Exception:
             continue
 
