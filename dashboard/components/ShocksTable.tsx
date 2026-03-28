@@ -32,6 +32,11 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
         : shocks.filter((s) => s.category === categoryFilter);
 
     return [...filtered].sort((a, b) => {
+      // Live alerts always sort to the top
+      const aLive = a.is_live_alert === true ? 1 : 0;
+      const bLive = b.is_live_alert === true ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+
       const mul = sortDir === "desc" ? -1 : 1;
       if (sortBy === "abs_delta") return mul * (a.abs_delta - b.abs_delta);
       if (sortBy === "t2")

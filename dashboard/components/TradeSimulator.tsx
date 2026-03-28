@@ -25,6 +25,8 @@ interface TradeSimulatorProps {
     "6h": DistributionData | null;
     "24h": DistributionData | null;
   };
+  sampleSize?: number;
+  filterLevel?: "tight" | "category" | "all";
 }
 
 function MetricCard({
@@ -48,11 +50,19 @@ function MetricCard({
   );
 }
 
+const FILTER_LABELS: Record<string, string> = {
+  tight: "similar shocks (same category, magnitude, direction)",
+  category: "same-category shocks",
+  all: "all historical shocks",
+};
+
 export default function TradeSimulator({
   shockDelta,
   shockCategory,
   backtest,
   distributions,
+  sampleSize,
+  filterLevel,
 }: TradeSimulatorProps) {
   const [positionSize, setPositionSize] = useState(100);
   const [horizon, setHorizon] = useState<Horizon>("6h");
@@ -94,10 +104,20 @@ export default function TradeSimulator({
           Fade This Shock?
         </h3>
         <p className="mt-1 text-sm text-text-muted">
-          Based on historical data for{" "}
-          <span className="font-medium">{shockCategory || "all"}</span> market
-          shocks (|delta| = {(Math.abs(shockDelta) * 100).toFixed(1)}pp)
+          Based on{" "}
+          <span className="font-medium">
+            {sampleSize ?? backtest.total_trades} {filterLevel ? FILTER_LABELS[filterLevel] : "historical shocks"}
+          </span>
+          {" "}(|delta| = {(Math.abs(shockDelta) * 100).toFixed(1)}pp
+          {shockCategory ? `, ${shockCategory}` : ""})
         </p>
+        {filterLevel && filterLevel !== "tight" && (
+          <p className="mt-1 text-xs text-amber-600">
+            {filterLevel === "category"
+              ? "Not enough similar shocks — widened to all same-category shocks"
+              : "Not enough similar shocks — using all historical data"}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-6">

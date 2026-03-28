@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "@/components/Header";
+import LiveAlertBanner from "@/components/LiveAlertBanner";
 import StatsCards from "@/components/StatsCards";
 import FindingsBlock from "@/components/FindingsBlock";
 import ShocksTable from "@/components/ShocksTable";
@@ -105,6 +106,17 @@ export default function Home() {
     ) as string[];
   }, [allShocks]);
 
+  // Live alerts: shocks with is_live_alert or very recent, sorted most recent first
+  const liveAlerts = useMemo(() => {
+    return allShocks
+      .filter(
+        (s) =>
+          s.is_live_alert === true ||
+          (s.is_recent === true && (s.hours_ago ?? 999) <= 6),
+      )
+      .sort((a, b) => (a.hours_ago ?? 999) - (b.hours_ago ?? 999));
+  }, [allShocks]);
+
   const handleFilterChange = useCallback((newFilters: DashboardFilters) => {
     setFilters(newFilters);
   }, []);
@@ -125,6 +137,7 @@ export default function Home() {
           <LoadingSpinner />
         ) : (
           <>
+            <LiveAlertBanner alerts={liveAlerts} />
             <DashboardControls
               categories={categories}
               onFilterChange={handleFilterChange}

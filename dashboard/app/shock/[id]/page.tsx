@@ -15,13 +15,13 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   DUMMY_SHOCKS,
   DUMMY_PRICE_SERIES,
-  DUMMY_BACKTEST,
+  DUMMY_SIMILAR_STATS,
   DUMMY_STATS,
 } from "@/lib/dummyData";
 import {
   Shock,
   PricePoint,
-  BacktestResponse,
+  SimilarStatsResponse,
   AggregateStats,
 } from "@/lib/types";
 
@@ -42,56 +42,65 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
     DUMMY_SHOCKS.find((s) => s._id === id) ?? DUMMY_SHOCKS[0],
   );
   const [series, setSeries] = useState<PricePoint[]>(DUMMY_PRICE_SERIES);
-  const [backtestData, setBacktestData] =
-    useState<BacktestResponse>(DUMMY_BACKTEST);
+  const [similarStats, setSimilarStats] =
+    useState<SimilarStatsResponse>(DUMMY_SIMILAR_STATS);
   const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
   const [positionSize, setPositionSize] = useState(100);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/shocks")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((shocks: Shock[]) => {
-          const found = shocks.find((s) => s._id === id);
-          if (found) {
-            setShock(found);
-            return fetch(`/api/markets?id=${found.market_id}`)
-              .then((res) => {
-                if (!res.ok) throw new Error("Failed");
-                return res.json();
-              })
+    async function load() {
+      try {
+        // Fetch shock list + stats in parallel
+        const [shocksRes, statsRes] = await Promise.all([
+          fetch("/api/shocks"),
+          fetch("/api/stats"),
+        ]);
+
+        let foundShock: Shock | undefined;
+
+        if (shocksRes.ok) {
+          const shocks: Shock[] = await shocksRes.json();
+          foundShock = shocks.find((s) => s._id === id);
+          if (foundShock) {
+            setShock(foundShock);
+            // Fetch market series in background
+            fetch(`/api/markets?id=${foundShock.market_id}`)
+              .then((res) => (res.ok ? res.json() : null))
               .then((market) => {
-                if (market?.series?.length > 0) {
-                  setSeries(market.series);
-                }
-              });
+                if (market?.series?.length > 0) setSeries(market.series);
+              })
+              .catch(() => {});
           }
-        })
-        .catch(() => {}),
-      fetch("/api/backtest")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: BacktestResponse) => {
-          if (data.backtest) setBacktestData(data);
-        })
-        .catch(() => {}),
-      fetch("/api/stats")
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed");
-          return res.json();
-        })
-        .then((data: AggregateStats) => {
+        }
+
+        if (statsRes.ok) {
+          const data: AggregateStats = await statsRes.json();
           if (data.total_shocks > 0) setStats(data);
-        })
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, [id]);
+        }
+
+        // Now fetch similar stats using the shock's properties
+        const s = foundShock ?? shock;
+        const params = new URLSearchParams({
+          abs_delta: String(s.abs_delta),
+          direction: s.delta > 0 ? "up" : "down",
+          exclude_id: s._id,
+        });
+        if (s.category) params.set("category", s.category);
+
+        const similarRes = await fetch(`/api/similar-stats?${params}`);
+        if (similarRes.ok) {
+          const data: SimilarStatsResponse = await similarRes.json();
+          if (data.backtest) setSimilarStats(data);
+        }
+      } catch {
+        // keep dummy data
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shockT1 = new Date(shock.t1).getTime() / 1000;
   const shockT2 = new Date(shock.t2).getTime() / 1000;
@@ -103,7 +112,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
       : shock.p_after + (stats.mean_reversion_6h ?? 0);
 
   const catStats = shock.category
-    ? backtestData.backtest?.by_category[shock.category]
+    ? similarStats.backtest?.by_category[shock.category]
     : null;
 
   if (loading) {
@@ -219,23 +228,25 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           shockDelta={shock.delta}
           positionSize={positionSize}
           category={shock.category}
-          backtestStats={catStats ?? (backtestData.backtest ? {
-            win_rate_6h: backtestData.backtest.win_rate_6h ?? 0.5,
-            avg_pnl_6h: backtestData.backtest.avg_pnl_per_dollar_6h,
+          backtestStats={catStats ?? (similarStats.backtest ? {
+            win_rate_6h: similarStats.backtest.win_rate_6h ?? 0.5,
+            avg_pnl_6h: similarStats.backtest.avg_pnl_per_dollar_6h,
           } : null)}
         />
 
         {/* 5. TradeSimulator */}
-        {backtestData.backtest && (
+        {similarStats.backtest && (
           <TradeSimulator
             shockDelta={shock.delta}
             shockCategory={shock.category}
-            backtest={backtestData.backtest}
+            backtest={similarStats.backtest}
             distributions={{
-              "1h": backtestData.distribution_1h,
-              "6h": backtestData.distribution_6h,
-              "24h": backtestData.distribution_24h,
+              "1h": similarStats.distribution_1h,
+              "6h": similarStats.distribution_6h,
+              "24h": similarStats.distribution_24h,
             }}
+            sampleSize={similarStats.sample_size}
+            filterLevel={similarStats.filter_level}
           />
         )}
 

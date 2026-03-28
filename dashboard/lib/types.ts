@@ -32,6 +32,22 @@ export interface Shock {
   reversion_1h: number | null;
   reversion_6h: number | null;
   reversion_24h: number | null;
+  // Live monitor fields
+  is_recent?: boolean;
+  is_live_alert?: boolean;
+  hours_ago?: number;
+  detected_at?: string;
+  fade_pnl_1h?: number | null;
+  fade_pnl_6h?: number | null;
+  fade_pnl_24h?: number | null;
+  historical_win_rate?: number | null;
+  historical_avg_pnl?: number | null;
+  historical_sample_size?: number | null;
+  ai_analysis?: {
+    likely_cause: string;
+    overreaction_assessment: string;
+    reversion_confidence: "low" | "medium" | "high";
+  } | null;
 }
 
 export interface CategoryStats {
@@ -97,4 +113,13 @@ export interface BacktestResponse {
   distribution_1h: DistributionData | null;
   distribution_6h: DistributionData | null;
   distribution_24h: DistributionData | null;
+}
+
+export interface SimilarStatsResponse {
+  backtest: BacktestStats;
+  distribution_1h: DistributionData | null;
+  distribution_6h: DistributionData | null;
+  distribution_24h: DistributionData | null;
+  sample_size: number;
+  filter_level: "tight" | "category" | "all";
 }

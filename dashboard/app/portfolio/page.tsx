@@ -15,8 +15,8 @@ import {
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { Shock, BacktestResponse } from "@/lib/types";
-import { DUMMY_SHOCKS, DUMMY_BACKTEST } from "@/lib/dummyData";
+import { Shock, SimilarStatsResponse } from "@/lib/types";
+import { DUMMY_SHOCKS } from "@/lib/dummyData";
 
 interface SelectedShock {
   market_id: string;
@@ -30,31 +30,58 @@ interface SelectedShock {
 export default function PortfolioPage() {
   const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
   const [selected, setSelected] = useState<SelectedShock[]>([]);
-  const [backtest, setBacktest] = useState<BacktestResponse>(DUMMY_BACKTEST);
+  const [similarStatsMap, setSimilarStatsMap] = useState<
+    Record<string, SimilarStatsResponse>
+  >({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/shocks")
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed");
-          return r.json();
-        })
-        .then((data: Shock[]) => {
-          if (data.length > 0) setAllShocks(data);
-        })
-        .catch(() => {}),
-      fetch("/api/backtest")
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed");
-          return r.json();
-        })
-        .then((data: BacktestResponse) => {
-          if (data.backtest) setBacktest(data);
-        })
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
+    fetch("/api/shocks")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      })
+      .then((data: Shock[]) => {
+        if (data.length > 0) setAllShocks(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
+
+  // Fetch similar-stats whenever selected shocks change
+  useEffect(() => {
+    if (selected.length === 0) return;
+
+    const newIds = selected
+      .map((s) => s.market_id)
+      .filter((id) => !similarStatsMap[id]);
+    if (newIds.length === 0) return;
+
+    Promise.all(
+      newIds.map((marketId) => {
+        const s = selected.find((sel) => sel.market_id === marketId)!;
+        const params = new URLSearchParams({
+          abs_delta: String(Math.abs(s.delta)),
+          direction: s.delta > 0 ? "up" : "down",
+        });
+        if (s.category) params.set("category", s.category);
+        return fetch(`/api/similar-stats?${params}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data: SimilarStatsResponse | null) => ({
+            marketId,
+            data,
+          }));
+      }),
+    ).then((results) => {
+      const updates: Record<string, SimilarStatsResponse> = {};
+      for (const r of results) {
+        if (r.data) updates[r.marketId] = r.data;
+      }
+      if (Object.keys(updates).length > 0) {
+        setSimilarStatsMap((prev) => ({ ...prev, ...updates }));
+      }
+    });
+  }, [selected, similarStatsMap]);
 
   const combinedPayoffByOutcome = useMemo(() => {
     if (selected.length === 0) return [];
@@ -81,23 +108,42 @@ export default function PortfolioPage() {
   }, [selected]);
 
   const portfolioStats = useMemo(() => {
-    if (selected.length === 0 || !backtest?.backtest) return null;
+    if (selected.length === 0) return null;
 
     const totalSize = selected.reduce((sum, s) => sum + s.positionSize, 0);
-    const bt = backtest.backtest;
     const n = selected.length;
-    const expectedPnl = totalSize * bt.avg_pnl_per_dollar_6h;
+
+    // Compute weighted expected P&L from per-shock similar stats
+    let weightedPnl = 0;
+    let weightedWinRate = 0;
+    let totalWeight = 0;
+    let hasStats = false;
+
+    for (const s of selected) {
+      const stats = similarStatsMap[s.market_id];
+      if (stats?.backtest) {
+        hasStats = true;
+        const avgPnl = stats.backtest.avg_pnl_per_dollar_6h;
+        const winRate = stats.backtest.win_rate_6h ?? 0;
+        weightedPnl += s.positionSize * avgPnl;
+        weightedWinRate += s.positionSize * winRate;
+        totalWeight += s.positionSize;
+      }
+    }
+
+    if (!hasStats) return null;
+
     const stdReduction = Math.sqrt(1 / n);
 
     return {
       totalSize,
       numPositions: n,
-      expectedPnl: Number(expectedPnl.toFixed(2)),
-      avgWinRate: bt.win_rate_6h ?? 0,
+      expectedPnl: Number(weightedPnl.toFixed(2)),
+      avgWinRate: totalWeight > 0 ? weightedWinRate / totalWeight : 0,
       diversificationBenefit: `${((1 - stdReduction) * 100).toFixed(0)}% variance reduction`,
       maxLoss: -totalSize,
     };
-  }, [selected, backtest]);
+  }, [selected, similarStatsMap]);
 
   const addShock = (shock: Shock) => {
     if (selected.length >= 4) return;
@@ -252,6 +298,16 @@ export default function PortfolioPage() {
                           {(s.delta * 100).toFixed(0)}pp)
                         </span>
                       </span>
+                      {similarStatsMap[s.market_id] && (
+                        <span className="text-xs text-text-muted">
+                          n={similarStatsMap[s.market_id].sample_size}
+                          {similarStatsMap[s.market_id].filter_level !== "tight" && (
+                            <span className="ml-1 text-amber-500">
+                              ({similarStatsMap[s.market_id].filter_level})
+                            </span>
+                          )}
+                        </span>
+                      )}
                       <label className="text-sm text-text-muted">$</label>
                       <input
                         type="number"

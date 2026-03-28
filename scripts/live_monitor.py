@@ -25,10 +25,52 @@ if not MONGO_URI:
 
 db = MongoClient(MONGO_URI)["shocktest"]
 
-# Load backtest stats for historical edge context
-aggregate = db["shock_results"].find_one({"_id": "aggregate_stats"})
-backtest: dict = aggregate.get("backtest", {}) if aggregate else {}
-by_category: dict = backtest.get("by_category", {})
+MIN_SIMILAR_SAMPLE = 5
+
+
+def query_similar_stats(
+    category: str, abs_delta: float, direction: str
+) -> dict:
+    """Query shock_events for similar historical shocks and compute stats.
+
+    Tries tight filter (category + magnitude ±30% + direction), falls back
+    to category-only, then all shocks if sample is too small.
+
+    Returns dict with win_rate, avg_pnl, sample_size, filter_level.
+    """
+    import numpy as np
+
+    tight_filter: dict = {
+        "abs_delta": {"$gte": abs_delta * 0.7, "$lte": abs_delta * 1.3},
+        "category": category,
+    }
+    if direction == "up":
+        tight_filter["delta"] = {"$gt": 0}
+    else:
+        tight_filter["delta"] = {"$lt": 0}
+
+    shocks = list(db["shock_events"].find(tight_filter, {"reversion_6h": 1}))
+    filter_level = "tight"
+
+    if len(shocks) < MIN_SIMILAR_SAMPLE:
+        shocks = list(db["shock_events"].find({"category": category}, {"reversion_6h": 1}))
+        filter_level = "category"
+
+    if len(shocks) < MIN_SIMILAR_SAMPLE:
+        shocks = list(db["shock_events"].find({}, {"reversion_6h": 1}))
+        filter_level = "all"
+
+    vals = [s["reversion_6h"] for s in shocks if s.get("reversion_6h") is not None]
+    if not vals:
+        return {"win_rate": None, "avg_pnl": None, "sample_size": 0, "filter_level": filter_level}
+
+    arr = np.array(vals)
+    return {
+        "win_rate": round(float(np.mean(arr > 0)), 4),
+        "avg_pnl": round(float(arr.mean()), 4),
+        "sample_size": len(vals),
+        "filter_level": filter_level,
+    }
 
 CLOB_BASE = "https://clob.polymarket.com"
 THETA = 0.08  # shock threshold
@@ -141,9 +183,10 @@ def detect_live_shocks() -> list[dict]:
         if existing:
             continue
 
-        # New live shock — build alert with historical edge context
+        # New live shock — build alert with similar-shock edge context
         category = market.get("category") or "other"
-        cat_stats = by_category.get(category, {})
+        direction = "up" if delta > 0 else "down"
+        similar = query_similar_stats(category, abs(delta), direction)
 
         t1_val = recent[0]["t"]
         t2_val = recent[-1]["t"]
@@ -169,10 +212,11 @@ def detect_live_shocks() -> list[dict]:
             "p_after": round(p_last, 4),
             "delta": round(delta, 4),
             "abs_delta": round(abs(delta), 4),
-            # Historical edge context for the frontend
-            "historical_win_rate": cat_stats.get("win_rate_6h", backtest.get("win_rate_6h")),
-            "historical_avg_pnl": cat_stats.get("avg_pnl_6h", backtest.get("avg_pnl_per_dollar_6h")),
-            "historical_sample_size": cat_stats.get("sample_size", backtest.get("total_trades")),
+            # Historical edge context from similar shocks
+            "historical_win_rate": similar["win_rate"],
+            "historical_avg_pnl": similar["avg_pnl"],
+            "historical_sample_size": similar["sample_size"],
+            "historical_filter_level": similar["filter_level"],
             # Live alert metadata
             "is_recent": True,
             "is_live_alert": True,
@@ -200,8 +244,10 @@ def detect_live_shocks() -> list[dict]:
         print(f"Category: {category}")
         win_rate = alert["historical_win_rate"]
         avg_pnl = alert["historical_avg_pnl"]
+        n = alert["historical_sample_size"]
+        lvl = alert["historical_filter_level"]
         if win_rate and avg_pnl:
-            print(f"Historical edge: {win_rate:.0%} win rate, avg P&L ${avg_pnl:.4f}/$1")
+            print(f"Similar shocks ({lvl}, n={n}): {win_rate:.0%} win rate, avg P&L ${avg_pnl:.4f}/$1")
         print(f"Signal: FADE {'DOWN' if delta > 0 else 'UP'}")
         print(f"{'=' * 60}")
 
@@ -229,7 +275,7 @@ def main() -> None:
     """Run the live monitor loop."""
     print("ShockTest Live Monitor")
     print(f"Polling every {POLL_INTERVAL}s | Threshold: {THETA} | Workers: {MAX_WORKERS}")
-    print(f"Backtest context: win_rate_6h={backtest.get('win_rate_6h', 'N/A')}")
+    print("Using similar-shock matching for historical edge context")
     print("Ctrl+C to stop\n")
 
     while True:
