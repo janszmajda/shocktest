@@ -1,15 +1,15 @@
 # ShockTest
-## *Do Prediction Markets Overreact?*
+## *Do Prediction Markets Overreact? Find the Edge. Size the Trade.*
 ### YHack Spring 2026 · Prediction Markets Track · 24-Hour Build
 
 ---
 
 > **TL;DR**
-> ShockTest pulls live prediction market data from **Polymarket** (sponsor) and Manifold Markets, detects large probability jumps ("shocks"), and measures whether markets systematically mean-revert or trend afterward. The result is a quant-style analytics dashboard backed by **MongoDB Atlas**, with market categorization powered by **Google Gemini** — delivering a concrete, falsifiable conclusion built in 24 hours by a team of three.
+> ShockTest is a **trading signal and analysis tool** for Polymarket. It pulls real market data, detects large probability shocks ("overreactions"), measures whether they systematically mean-revert, and gives traders an interactive simulator to size fade-the-shock positions with historical edge statistics. The result is a quant-grade analytics + trading decision tool backed by **MongoDB Atlas**, with market categorization powered by **Google Gemini** — built in 24 hours by a team of three.
 
 ---
 
-## 1. The Hypothesis
+## 1. The Hypothesis (The Alpha)
 
 Prediction markets are often described as efficient aggregators of information — but they can still overreact to headlines, herd during high-attention moments, or temporarily misprice due to low liquidity.
 
@@ -18,37 +18,67 @@ We test a single, falsifiable question:
 > **H₀ (null):** After a large probability shock, future changes are random / symmetric.
 > **H₁ (alt):** After a large shock, probabilities systematically mean-revert (A) or continue trending (B).
 
-We will quantify which is more common, how strong the effect is, and whether it differs by market category (politics vs. sports vs. crypto).
+We quantify which is more common, how strong the effect is, and whether it differs by market category (politics vs. sports vs. crypto). Then we turn that finding into a **trading tool** — letting users explore the edge interactively and simulate positions before trading.
 
 ---
 
 ## 2. What We Build
 
-### A. Shock Detection
+### A. Shock Detection Engine
 
-Scans all tracked markets for large, fast probability moves using a configurable threshold. Each detected shock is logged with its market name, timestamp window, probability before/after, and delta.
+Scans all tracked Polymarket + Manifold markets for large, fast probability moves using a configurable threshold. Each detected shock is logged with its market name, timestamp window, probability before/after, and delta. Users can **dynamically adjust the shock threshold (θ) and time horizon** to explore different definitions of "overreaction."
 
-### B. Post-Shock Analysis
+### B. Post-Shock Analysis & Backtest
 
 For each shock, measures what happens at horizons h ∈ {1h, 6h, 24h}. Computes reversion amount, continuation amount, and aggregates results across all shocks:
 
-- % of shocks that revert vs. continue
+- % of shocks that revert vs. continue (the **edge**)
 - Mean reversion magnitude and standard deviation
 - Histogram of post-shock probability changes
 - Breakdown by market category — categories assigned automatically via **Google Gemini** from market titles
+- **Fade strategy backtest**: simulates taking the opposite position after each shock, reports win rate, average P&L, and expected value
 
-### C. Interactive Dashboard
+### C. Interactive Trading Tools (Core — The Demo Centerpiece)
+
+Each shock's detail page provides a full suite of trading decision tools:
+
+1. **Payoff Curve**: Interactive payoff diagram showing P&L at every possible resolution outcome (0%–100%). Displays current market price, break-even point, and historical mean-reversion target as reference lines. This is the prediction market equivalent of an options payoff calculator — directly inspired by [optionsprofitcalculator.com](https://www.optionsprofitcalculator.com/) referenced in the track brief.
+
+2. **Scenario Analysis Panel**: Three interactive sliders — "What if probability moves to ___?", "What if resolution is in ___ days?", "Position size $___." Outputs update dynamically: P&L at target, adjusted win rate (accounting for time decay), adjusted EV, and max loss. This directly addresses the brief's call for "scenario analysis tools that show how a position performs if an event resolves sooner vs later."
+
+3. **Trade Simulator**: Position size input → expected P&L, win rate, best/worst case — all derived from real backtest data, broken down by category. Payoff distribution histogram (green = reversion profit, red = continuation loss) overlaid with the user's position size.
+
+4. **P&L Timeline**: Line chart showing how a fade position's P&L evolves over 24 hours post-shock, not just endpoint values. Shows the trader "when would I have been green?"
+
+### D. Portfolio Builder (Core — Multi-Market)
+
+New page (`/portfolio`) where the user selects 2–4 shocks to fade simultaneously:
+
+- Pick shocks from the table (prioritizing 🔴 LIVE signals)
+- Set per-position size for each shock
+- See combined portfolio payoff graph: individual position lines (thin) + combined portfolio line (bold)
+- Portfolio statistics: total deployed capital, combined expected P&L, win rate, and **diversification benefit** (variance reduction from independent bets scaling as 1/√N)
+
+This directly addresses the brief's call for "portfolio or strategy views that combine multiple markets into a single payoff graph."
+
+### E. Interactive Dashboard
 
 A clean, demo-ready Next.js web app deployed on Vercel showing:
 
-- Top Shocks table — sortable by size, category, time
-- Per-shock chart — probability over time with shock window highlighted
+- **Configurable controls**: shock threshold slider (θ), horizon picker, category filter — all dynamically refilter the data
+- **🔴 LIVE signals**: shocks from the last 48 hours flagged as potentially actionable — transforms from retrospective to forward-looking
+- Top Shocks table — sortable by size, category, time, reversion outcome
 - Aggregate histogram — distribution of post-shock moves
-- Summary stats panel — reversion rate, mean magnitude, sample size
+- Summary stats panel — reversion rate, mean magnitude, sample size, edge statistics
+- Category breakdown — reversion rates by market type
 
-### D. Stretch: Fade Strategy Backtest
+### F. Stretch: Advanced Features
 
-Rule: when probability jumps by ≥X in window T, bet opposite. Evaluate average outcome at horizon H. This is not a money-making claim — it is a demonstration of quant logic and backtesting methodology.
+Only after MVP (A–E) is fully working:
+
+- **Cross-market shock correlation**: do shocks cluster across categories? Co-occurrence matrix displayed as heatmap
+- **Transaction cost modeling**: deduct 1–2% slippage per trade, report adjusted EV
+- **Statistical significance**: confidence intervals on reversion rate
 
 ---
 
@@ -62,9 +92,9 @@ A shock occurs when the absolute change in implied probability exceeds a thresho
 |p(t₂) − p(t₁)| ≥ θ   where Δt = t₂ − t₁ ≤ T
 ```
 
-> **Default Parameters (tunable during build)**
-> θ = 0.08 (8 percentage point move)
-> T = 1 hour (or shortest available resolution)
+> **Default Parameters (user-configurable in the dashboard)**
+> θ = 0.08 (8 percentage point move) — adjustable via slider from 0.03 to 0.20
+> T = 1 hour (or shortest available resolution) — adjustable via dropdown
 
 ### Post-Shock Measurement
 
@@ -78,236 +108,280 @@ reversion   = −sign(shock_size) × post_move
 
 Positive reversion = price moved back toward pre-shock level. Negative = continued in shock direction.
 
+### Fade Strategy Backtest
+
+For each shock, simulate the following trade:
+
+```
+Entry:    Buy opposite direction at p(t₂) — i.e., if shock was UP, buy NO; if DOWN, buy YES
+Exit:     Close at p(t₂ + h) for horizon h
+P&L:      position_size × reversion (positive = profit, negative = loss)
+```
+
+Report per-category and overall:
+- Win rate (% of trades with positive P&L)
+- Average P&L per $1 risked
+- Expected value per trade
+- Max drawdown in the sample
+
+**Important caveats** (displayed in the tool):
+- In-sample backtest only — no out-of-sample validation
+- Ignores transaction costs, slippage, and liquidity constraints
+- Small sample size — edge may not persist
+- Not investment advice — exploratory analysis tool
+
+### Trade Simulator Math
+
+For a user-specified position size $S on a shock with magnitude |δ| in category C:
+
+```
+Expected P&L     = S × mean_reversion(C, h)
+Win Probability   = reversion_rate(C, h)
+Best Case P&L     = S × max_reversion(C, h)
+Worst Case P&L    = S × min_reversion(C, h)  (negative = loss)
+```
+
+Where the distribution parameters come from the historical backtest for that category and horizon.
+
 ### Aggregation Metrics
 
 | Metric | Definition |
 |--------|------------|
 | Reversion Rate | % of shocks where reversion > 0 |
 | Mean Reversion | Average reversion magnitude across all shocks |
+| Expected Value | Mean P&L per $1 risked in fade strategy |
 | Effect by Category | Reversion rate split by politics / sports / crypto |
 | Sample Size | Number of valid shocks per horizon |
 
 ---
 
-## 4. Technical Stack
+## 4. How This Maps to Track Requirements
 
-### Python Backend + Next.js Frontend (best path to polished demo)
+| Track Requirement | How ShockTest Delivers |
+|-------------------|----------------------|
+| "Use real or realistic Polymarket market data" | Primary data source is Polymarket Gamma API (2-min resolution price history), supplemented by Manifold |
+| "Allow a user to input positions, strategies, or parameters and see outputs update dynamically" | θ slider, horizon picker, category filter, position size input, scenario sliders (target probability, days to resolution) → all dynamically update charts and P&L projections |
+| "Profit & loss visualizations across different probability outcomes" | **Payoff Curve** on every shock detail page shows P&L at all possible resolution outcomes (0–100%), with current price and mean-reversion target marked |
+| "Scenario analysis tools that show how a position performs if an event resolves sooner vs later" | **Scenario Panel** with three sliders: target probability, days to resolution (with time-decay model), and position size — outputs update instantly |
+| "Portfolio or strategy views that combine multiple markets into a single payoff graph" | **Portfolio Builder** page: select 2–4 shocks, set position sizes, see combined payoff graph with individual lines + bold portfolio line + diversification stats |
+| "Produce concrete analytical or visual outputs" | Payoff curves, scenario outputs, P&L timelines, payoff distribution histograms, aggregate histograms, category breakdown tables |
+| "Be grounded in real trading use cases" | Fade-the-shock is a real mean-reversion strategy; 🔴 LIVE signals flag shocks from the last 48h that are still tradeable |
+| "Quality of insight and correctness of modeling" | Falsifiable hypothesis, transparent methodology, explicit caveats about in-sample bias and transaction costs, time-decay model for resolution timing |
+| "Strength of visualization and UX" | Interactive payoff curves, 3-slider scenario panel, trade simulator, P&L timeline, configurable dashboard controls, live signal badges |
+| "Technical depth and execution" | Multi-source data pipeline, configurable event detection, LLM categorization, cross-market correlation analysis, portfolio diversification math, full-stack deployment |
+| "Creativity and originality" | Novel approach: treating prediction market overreactions as a systematic signal, quantifying the edge, and building TradFi-style tools (payoff curves, scenario analysis, portfolio builder) around it |
+| "Clarity of explanation" | Concrete user story in demo: "You see a live shock → you check the payoff curve → you run scenarios → you size the trade → you add it to a portfolio" |
+
+---
+
+## 5. Technical Stack
 
 | Layer | Tool | Purpose |
 |-------|------|---------|
 | Data | `polymarket-apis` + `requests` + `pandas` | Fetch & store market time series from Polymarket (primary) and Manifold (supplemental) |
-| Storage | **MongoDB Atlas** (free M0 cluster) | Cloud database for market time series + shock results — replaces local JSON/CSV |
-| Analysis | `pandas` + `numpy` | Shock detection, post-shock stats |
+| Storage | **MongoDB Atlas** (free M0 cluster) | Cloud database for market time series, shock events, backtest results, and aggregate stats |
+| Analysis | `pandas` + `numpy` | Shock detection, post-shock outcomes, fade strategy backtest |
 | Categorization | **Google Gemini 2.5 Flash** (free tier) | Auto-classify markets into politics / sports / crypto / other from titles |
-| Charts | `recharts` or `plotly.js` | Interactive probability charts in React |
-| Dashboard | **Next.js** + **Vercel** | Production-grade web app with full CSS control, deployed via `vercel deploy` |
+| Frontend | **Next.js** (App Router) + **Recharts** + **Tailwind CSS** | Interactive dashboard with trade simulator, deployed on Vercel |
 | Domain | **GoDaddy Registry** (free via MLH) | Custom domain for deployed app |
 
 ### Architecture: Python Backend → MongoDB → Next.js Frontend
 
-Persons 1 & 2 work entirely in Python — fetching data, detecting shocks, running analysis, and writing results to MongoDB. Person 3 builds a Next.js app that reads from MongoDB via API routes (`/api/shocks`, `/api/markets`, `/api/stats`) and renders the dashboard. This means the backend and frontend are fully decoupled: Person 3 can build UI with dummy data while Persons 1 & 2 are still populating MongoDB. Deploy with `vercel deploy` — zero config, instant production URL, custom domain support built in.
-
-### Primary Data Source: Polymarket (Track Sponsor)
-
-Polymarket's Gamma API is read-only, public, and requires no authentication. The `polymarket-apis` PyPI package provides:
-
-- `get_price_history(token_id)` — price history at 2-minute resolution
-- `get_recent_price_history(token_id)` — last 1h, 6h, 1d, 1w, 1m
-- `get_markets()` — list active markets with current probability, volume, liquidity
-
-Key endpoint: `https://gamma-api.polymarket.com/markets`
-
-**Why Polymarket first:** Polymarket is the Prediction Markets track sponsor. Using their data directly signals alignment with the track. Their 2-min price resolution is also significantly better than Manifold's bet-history-based approach for shock detection.
-
-### Supplemental Data Source: Manifold Markets
-
-Manifold adds category diversity (more niche/community markets). Key endpoints:
-
-- `GET /v0/markets` — list active markets with current probability
-- `GET /v0/market/{id}/bets` — full bet history (timestamps + probabilities)
-- Free, no auth required for read access
-
-Use Manifold to pad sample size if Polymarket alone yields too few shocks.
+Persons 1 & 2 work in Python — fetching data, detecting shocks, running backtest, writing results to MongoDB. Person 3 builds a Next.js app that reads from MongoDB via API routes and renders the interactive dashboard + trade simulator. Frontend and backend are fully decoupled.
 
 ---
 
-## 5. 24-Hour Team Split (3 People)
-
-Work in parallel where possible. Person 1 unblocks Persons 2 and 3 as early as Hour 2.
+## 6. 24-Hour Team Split (3 People)
 
 | Hours | Person 1 (Data) | Person 2 (Analysis) | Person 3 (Frontend) |
 |-------|----------------|---------------------|---------------------|
-| 0 – 2 | Register GoDaddy domain (5 min). Set up MongoDB Atlas free cluster (15 min). Install `polymarket-apis`, pull sample market, confirm price history fields. | Help verify Polymarket data shape, plan metrics | Scaffold Next.js app with Claude Code (`npx create-next-app`), install deps (`recharts`, `mongodb`), deploy skeleton to Vercel |
-| 2 – 6 | Fetch 50+ Polymarket markets, store time series in MongoDB. Pull supplemental Manifold markets. | Write rolling delta helper functions | Build top shocks table component (React + dummy data), set up API routes to read from MongoDB |
-| 6 – 10 | Resample to fixed intervals, validate data quality across both sources | Implement shock detector (threshold scan) | Build per-shock probability chart component (Recharts `LineChart` with shock window highlight) |
-| 10 – 16 | Expand to 100+ markets across both sources | Compute post-shock outcomes at 1h/6h/24h. **Use Gemini 2.5 Flash to auto-categorize markets** (politics/sports/crypto/other) from titles. | Aggregate histogram component + summary stats cards. Build layout/navigation. |
-| 16 – 20 | MVP complete — support analysis bugs | Validate results manually, write findings text | Wire real MongoDB data into all Next.js pages via API routes |
-| 20 – 24 | Stretch: fade strategy backtest | Stretch: category breakdown analysis | **Polish UI for Best UI/UX track** (Tailwind styling, animations, chart readability). Prepare demo flow + README. **Film 30-sec reel for Most Viral Post.** |
-
-> **⚠ Key Dependency:** Person 1 must confirm the Polymarket Gamma API returns usable price history data by Hour 2. Everything downstream depends on this. The `polymarket-apis` package's `get_price_history()` should return 2-min resolution data per token_id. If it's unavailable or too sparse, fall back to Manifold bet history as primary, or hand-log 5–10 markets during the hackathon.
+| 0–2 | GoDaddy domain, MongoDB Atlas setup, verify Polymarket API | Help verify data shape, plan metrics | Scaffold Next.js, install deps, deploy skeleton to Vercel |
+| 2–6 | Fetch 50+ Polymarket markets → MongoDB. Pull Manifold markets. | Write delta helpers, start shock detector | Build shocks table + API routes with dummy data |
+| 6–10 | Resample/validate data quality, expand market count | Run shock detection at scale, verify shocks | Build price chart component, per-shock detail page |
+| **10–16** | **Expand to 100+ markets. Compute backtest results (fade P&L per shock). Support Person 2/3.** | **Post-shock outcomes + Gemini categorization + aggregate stats + backtest statistics (win rate, EV, distribution params). Write findings text.** | **Build trade simulator component + configurable controls (θ slider, horizon picker). Wire real data into all components.** |
+| 16–20 | MVP complete — write README, support bugs | Validate results, refine findings text, help Person 3 with data interpretation | Wire trade simulator to real backtest data. Full integration pass. Deploy to Vercel. |
+| 20–24 | Stretch features or README/Devpost | Stretch: category breakdown analysis, Devpost description | Polish UI for Best UI/UX. Film reel. Final deploy + submission. |
 
 ---
 
-## 6. Hour-by-Hour Build Plan
+## 7. Hour-by-Hour Detail (Hours 10–24)
 
-### Hours 0–2 · Setup, Data Verification & Prize Infra
+### Hours 10–16 · Core Trading Tool Build (CURRENT PHASE)
 
-**Person 1 priority tasks (first 30 min):**
-- Register domain at `mlh.link/godaddyregistry` using code `YHack26` (e.g., `shocktest.xyz`) — 5 min
-- Create free MongoDB Atlas M0 cluster at `mongodb.com/atlas` — 15 min
-  - Choose AWS / us-east-1, name it `shocktest`
-  - Whitelist IP `0.0.0.0/0` for hackathon (restrict later)
-  - Get connection string, test with `pymongo`
+**Person 1 (Data Pipeline)**
+- Expand to 100+ markets total across Polymarket + Manifold
+- For each shock event already in MongoDB, compute and store the fade-strategy P&L:
+  - `fade_pnl_1h`, `fade_pnl_6h`, `fade_pnl_24h` (same as reversion values, but framed as P&L per $1 position)
+- Store distribution parameters in `shock_results`: min/max/percentiles of reversion by category
+- Monitor MongoDB storage (free tier = 512MB)
 
-**All team:**
-- Clone repo, install Python deps: `pip install polymarket-apis pymongo requests pandas numpy google-generativeai`
-- Person 3: `npx create-next-app@latest shocktest-dashboard --typescript --tailwind --app` then `npm install recharts mongodb`
-- Test Polymarket: `pip install polymarket-apis`, call `get_markets()` — confirm you get market question + probability + token_id
-- Test price history: call `get_price_history(token_id)` on one active market — confirm timestamps + price data at 2-min resolution
-- Save one market's time series to MongoDB collection `market_series`
-- **Decision gate:** if Polymarket data looks good → proceed as primary. If not → swap to Manifold primary, Polymarket supplemental.
+**Person 2 (Analysis)**
+- Compute post-shock outcomes at 1h/6h/24h for all shocks → update `shock_events` in MongoDB
+- Run Gemini categorization on all markets → update `category` field in `market_series` and `shock_events`
+- Compute aggregate stats → store in `shock_results`:
+  - Overall: reversion rates, means, std devs, sample sizes per horizon
+  - By category: same breakdown per category
+  - **Backtest stats**: win rate, average P&L, expected value per $1, max drawdown — overall and by category
+  - **Distribution data**: histogram bin edges + counts for the post-shock move distribution (for the frontend payoff chart)
+- Write the findings paragraph with real numbers
+- Validate: are results sensible? Is reversion rate between 40–70%? Are sample sizes per category ≥5?
 
-### Hours 2–6 · Data Pipeline
+**Person 3 (Frontend)**
+- Build the **Trade Simulator** component:
+  - Position size input ($)
+  - Horizon selector (1h / 6h / 24h)
+  - Output: expected P&L, win rate, best/worst case
+  - Payoff distribution chart (Recharts BarChart showing historical outcome distribution with user's position overlaid)
+- Build **configurable controls** for the main dashboard:
+  - θ (shock threshold) slider: 0.03–0.20, default 0.08
+  - Horizon picker: 1h / 6h / 24h
+  - Category filter: all / politics / sports / crypto / other
+  - These filter the shocks table and recompute displayed stats client-side
+- Start wiring real data: check `/api/shocks`, `/api/stats`, `/api/markets` — replace dummy data as it becomes available
+- New API route: `/api/backtest` — returns backtest stats and distribution data from `shock_results`
 
-- Fetch top N=50 active Polymarket markets (filter: binary outcome, decent volume)
-- For each market, pull full price history → store in MongoDB `market_series` collection
-- Pull supplemental Manifold markets (20–30 additional) for category diversity → store in same collection
-- Write `get_delta(series, window)` helper — returns rolling Δp
-- Each document in MongoDB: `{market_id, source, question, token_id, series: [{t, p}, ...], category: null}`
+### Hours 16–20 · Integration + MVP
 
-### Hours 6–10 · Shock Detection
-
-- Write `find_shocks(market_id, theta=0.08, window_hrs=1)` function
-- Returns list of `{market, source, t1, t2, p_before, p_after, delta}`
-- Run on all markets → save to MongoDB `shock_events` collection
-- Sanity check: manually inspect 3–5 detected shocks — do they look real?
-
-### Hours 10–16 · Post-Shock Analysis + Gemini Categorization
-
-- **Gemini categorization (Person 2, ~30 min):**
-  - Get free Gemini API key via Google AI Studio (no credit card needed)
-  - For each market, send title to Gemini 2.5 Flash: *"Classify this prediction market into exactly one category: politics, sports, crypto, entertainment, science, or other. Market: '{question}'. Respond with only the category name."*
-  - Free tier = 10 RPM / 250 req/day — more than enough for 100 markets
-  - Update MongoDB documents with `category` field
-- For each shock, look up `p(t2 + 1h)`, `p(t2 + 6h)`, `p(t2 + 24h)`
-- Compute `reversion = −sign(delta) × post_move` for each horizon
-- Aggregate: `reversion_rate`, `mean_reversion`, `std_reversion`
-- Save results to MongoDB `shock_results` collection
-- Generate 3 key plots: shock timeline, post-shock distribution, reversion by category
-
-### Hours 16–20 · MVP Dashboard
-
-- Wire all data from MongoDB into Next.js via API routes (`/api/shocks`, `/api/markets`, `/api/stats`)
-- Top Shocks table with filters (category, min shock size, date range, data source)
-- Clickable row → shows per-shock probability chart (Recharts `LineChart`)
-- Aggregate histogram + summary stats card
-- One-paragraph 'Findings' section at top with real numbers
-- Add "Powered by Polymarket" attribution + data source badges
-- Deploy to Vercel: `vercel deploy --prod`, point GoDaddy domain `shocktest.xyz` to Vercel
-
-### Hours 20–24 · Polish + Stretch + Prize Submissions
-
+**Person 1**
+- MVP data complete — all markets fetched, all shocks computed, backtest stored
 - Write `README.md` with hypothesis, methodology, results, tech stack
-- Stretch: implement fade strategy backtest + EV estimate
-- Stretch: category breakdown table (politics vs. sports vs. crypto)
-- **Best UI/UX polish (Person 3, 30 min):** consistent color palette, clear visual hierarchy, readable chart labels, smooth transitions, responsive layout — full CSS control via Tailwind
-- **Film reel for Most Viral Post:** 30-sec screen recording of a dramatic shock reverting on the dashboard, post to Instagram tagging @yhack.yale
-- Final `vercel deploy --prod`, verify `shocktest.xyz` resolves
-- Prepare 3-minute demo script for judges
-- **Submit on Devpost:** select Prediction Markets, Most Creative Hack, Best UI/UX tracks
+- Support Person 3 with data format issues
+
+**Person 2**
+- Validate all results manually — spot-check 5 shocks, confirm reversion values make sense
+- Refine findings text with final numbers
+- Write Devpost project description
+
+**Person 3**
+- Full integration: every component reads from real API routes, no dummy data
+- Trade simulator wired to real backtest distribution data
+- Configurable controls dynamically filter the data
+- FindingsBlock component displays Person 2's findings text with injected numbers
+- Deploy to Vercel, point GoDaddy domain
+- Test: all pages load, all charts render, simulator produces sensible outputs
+
+### Hours 20–24 · Polish + Stretch + Submission
+
+**Person 1**
+- Stretch: expand backtest with transaction cost assumptions (e.g., 1% slippage deduction)
+- Help with README and Devpost
+
+**Person 2**
+- Stretch: statistical significance test on category differences
+- Stretch: "recent shocks" view — flag shocks from last 24–48h as potentially actionable
+- Finalize Devpost description
+
+**Person 3**
+- **30-min UI polish pass**: consistent color palette, readable chart labels, smooth transitions, responsive layout, visual hierarchy (headline finding = most prominent)
+- **Film 30-sec reel**: show a dramatic shock → click into it → show trade simulator output → end with URL
+- Final `vercel --prod` deploy
+- Submit on Devpost: select Prediction Markets, Most Creative Hack, Best UI/UX
 
 ---
 
-## 7. Demo Script (3 Minutes)
+## 8. Demo Script (3 Minutes)
 
 > **Opening Hook (30 sec)**
-> *"Prediction markets are supposed to be efficient. But are they? We built a tool to test a specific, quantifiable claim: when a prediction market experiences a sudden large probability jump, does the market overshoot and revert — or does it hold? This is the same question quant funds ask about asset prices every day. We pulled real data from Polymarket to find out."*
+> *"Prediction markets are supposed to be efficient — but what if they consistently overreact to breaking news? We built a tool that detects overreactions in Polymarket data and tells you exactly what the historical edge looks like if you fade them. Think of it as a quant signal desk for prediction markets."*
 >
-> **Show the Data (45 sec)**
-> Show the Top Shocks table. Click into one compelling example — a political market that jumped 15% in one hour. Show the probability chart with the shock highlighted. Mention the data comes directly from Polymarket's API with 2-minute resolution.
+> **Show the Signal (45 sec)**
+> Show the dashboard with configurable controls. Adjust the θ slider to show how many shocks appear at different thresholds. Click into one compelling example — a political market that jumped 15pp in one hour. Show the probability chart with the shock highlighted in red.
 >
-> **The Finding (60 sec)**
-> Show the aggregate histogram and summary stats. State your conclusion with real numbers: *"In our sample of X shocks across Y Polymarket markets, Z% showed mean reversion within 6 hours, with average magnitude W. Political markets reverted more often than sports markets — categories we classified automatically using Google Gemini."* This is your headline result.
+> **The Edge (60 sec)**
+> Show the aggregate stats and histogram. State the headline: *"In our sample of X shocks across Y Polymarket markets, Z% reverted within 6 hours. Political markets reverted at A%, crypto at B%."* Then show the trade simulator: *"If you had faded this shock with a $100 position, your expected P&L based on historical data would be $X, with a Y% win rate."* Show the payoff distribution chart.
 >
-> **So What? (45 sec)**
-> If you built the backtest: show the fade strategy result. Emphasize this is exploratory, not a trading system. The point is you identified a measurable behavioral pattern in real market data. Close with: *"All data is stored in MongoDB Atlas and the app is live at shocktest.xyz."*
+> **Why It Matters (45 sec)**
+> *"This isn't a black-box trading bot — it's a decision support tool. It shows you the edge, lets you size the position, and gives you the historical distribution so you can make an informed decision. All data is live from Polymarket's API, stored in MongoDB Atlas, categories tagged by Gemini, and the app is live at shocktest.xyz."*
 
 ---
 
-## 8. Resume & Interview Talking Points
-
-This is why ShockTest beats a generic dashboard for quant/fintech/SWE recruiting:
+## 9. Resume & Interview Talking Points
 
 | What You Did | How You Say It |
 |-------------|----------------|
 | Shock detection | Implemented a configurable event detection algorithm on probability time series from Polymarket, analogous to volatility spike detection in equity markets |
-| Post-shock analysis | Designed and ran a quantitative study on mean reversion behavior across 100+ prediction markets, producing statistically grounded conclusions |
-| Category breakdown | Used LLM-based classification (Gemini) to auto-tag market categories, then identified differential reversion patterns suggesting behavioral vs. informational drivers of price shocks |
-| Fade backtest | Built a toy backtest to evaluate an edge hypothesis, accounting for transaction costs and reporting in-sample EV with appropriate caveats |
-| Full stack delivery | Shipped a production web app (Next.js + Vercel) integrating Polymarket's API, MongoDB Atlas for cloud storage, Gemini for NLP classification, and interactive data visualization — in 24 hours |
+| Post-shock analysis + backtest | Designed and ran a quantitative mean-reversion study across 100+ prediction markets, then built a fade-strategy backtest reporting win rate, EV, and drawdown |
+| Trade simulator | Built an interactive position-sizing tool that uses historical reversion distributions to project expected P&L, win rate, and scenario outcomes for user-specified trades |
+| Category breakdown | Used LLM-based classification (Gemini) to auto-tag market categories, then identified differential reversion patterns suggesting behavioral vs. informational drivers |
+| Full stack delivery | Shipped a production trading tool (Next.js + Vercel) integrating Polymarket's API, MongoDB Atlas, Gemini, interactive data visualization, and a trade simulator — in 24 hours |
 
-> **Interview angle:** When asked "tell me about a project," you can say: *"I ran a quantitative study on whether prediction markets overreact to news events, using real Polymarket data. We found that X% of large probability shocks reversed within 6 hours. We classified markets by category using Gemini and found political markets reverted more than sports. We then tested whether a simple contrarian strategy had positive expected value in-sample."* That framing is instantly credible at any quant or fintech firm.
+> **Interview angle:** *"I built a trading signal and decision tool for prediction markets. We found that X% of large Polymarket probability shocks reversed within 6 hours. We then built an interactive simulator where a trader can input a position size and see the expected P&L distribution based on historical data — broken down by market category. It's a research finding turned into a usable trading tool."*
 
 ---
 
-## 9. Risk Mitigation
+## 10. Risk Mitigation
 
 | Risk | Likelihood | Mitigation |
 |------|-----------|------------|
-| Polymarket Gamma API rate-limited or sparse | Low | Gamma API is public/read-only with no strict rate limit for reads. Cache in MongoDB. Fall back to Manifold as primary if needed. |
-| Manifold API rate-limited or sparse | Medium | Manifold is supplemental — losing it only reduces sample size, doesn't block the project. |
-| MongoDB Atlas setup issues | Low | Takes ~15 min. If blocked, fall back to local JSON/CSV — can migrate later. Don't let this block Person 2 or 3. |
-| Gemini API key or quota issues | Low | Free tier gives 250 req/day. If blocked, manually tag 20 markets into categories — still works for category breakdown. |
-| Not enough shocks in data | Low-Medium | Lower θ to 0.05; combine both Polymarket and Manifold data; use all available historical price data |
-| Analysis produces null result (no reversion) | Low | A null result is still a valid finding — "markets are efficient in this sample" is a legitimate conclusion |
-| Dashboard not finished in time | Low | Person 3 uses Claude Code heavily for Next.js scaffolding. If still blocked, fall back to a single-page HTML with Plotly.js — charts and a clear conclusion still win on quant merit |
-| Next.js / Vercel deployment issues | Low | Vercel deploys from git push with zero config. If blocked, deploy as static HTML to any host. Don't let deployment block the analysis. |
-| Team blocked on data shape | Low | Persons 2 and 3 can work on analysis logic and UI shell with mock data while Person 1 fixes the pipeline |
+| Polymarket API rate-limited or sparse | Low | Gamma API is public/read-only. Cache in MongoDB. Fall back to Manifold as primary if needed. |
+| Not enough shocks in data | Low-Medium | Lower θ to 0.05; combine both sources; use all available history |
+| Analysis produces null result (no reversion) | Low | A null result is still valid — "markets are efficient" is a legitimate conclusion; simulator still works, just shows ~50/50 edge |
+| Trade simulator feels simplistic | Medium | The simplicity IS the point for a hackathon — clear assumptions, transparent math, explicit caveats. Judges want correctness > complexity. |
+| Dashboard not finished in time | Low | Person 3 uses Claude Code heavily. If blocked, the core value is the analysis + backtest — a simpler UI still wins on quant merit. |
+| Team blocked on data shape | Low | Persons 2 and 3 can work with mock data while Person 1 fixes pipeline |
 
 ---
 
-## 10. Scope Guardrails — What NOT to Build
+## 11. Scope Guardrails — What NOT to Build
 
-These are explicitly out of scope. Do not start them until the MVP is fully working:
-
-> **Do not build these before MVP is done:**
-> - ML-based shock prediction (out of scope and not better than your simple stat)
-> - Real-time live updates / WebSocket feeds (adds infra complexity, no demo benefit)
-> - Connecting to a wallet or executing real trades
+> **Do not build these before MVP (A–D) is fully working:**
+> - ML-based shock prediction (not better than simple stat, adds complexity without insight)
+> - Real-time live WebSocket feeds (adds infra complexity, no demo benefit)
+> - Connecting to a wallet or executing real trades (out of scope, liability risk)
 > - Calibration analysis or Bayesian updating (save for post-hackathon)
-> - Hex API integration (requires paid plan + major frontend pivot — not worth the scope creep)
+> - Multi-market portfolio optimizer (stretch at best)
 
 ---
 
-## 11. Prize Strategy
+## 12. Prize Strategy
 
-### Tracks We're Targeting
+| Track | Prize | What We Do |
+|-------|-------|-----------|
+| **Prediction Markets** (Polymarket) | $2,000 / $1,000 / $500 | Polymarket Gamma API as primary data source. Trading tool with interactive simulator directly addresses track brief. |
+| **Grand Prize** (YHack) | $4,000 / $2,000 / $1,000 | Automatic eligibility |
+| **MongoDB Atlas** (MLH) | M5Stack IoT Kit per member | Free M0 cluster for all data storage |
+| **Google Gemini** (MLH) | Google Swag Kit per member | Gemini 2.5 Flash auto-categorizes markets |
+| **GoDaddy Registry** (MLH) | ~$50 gift card | `shocktest.xyz` via `mlh.link/godaddyregistry` |
+| **Most Creative Hack** (YHack) | $100 | Quant research + trading tool at a hackathon is inherently unusual |
+| **Best UI/UX** (YHack) | $100 | Interactive simulator + configurable controls = strong UX story |
+| **Most Viral Post** (@YHack) | $100 | 30-sec reel of dramatic shock + trade simulator |
 
-| Track | Prize | What We Do | When |
-|-------|-------|-----------|------|
-| **Prediction Markets** (Polymarket) | $2,000 / $1,000 / $500 | Use Polymarket Gamma API as primary data source. `pip install polymarket-apis`. | Core — built into pipeline from Hour 0 |
-| **Grand Prize** (YHack) | $4,000 / $2,000 / $1,000 | Automatic eligibility. Build the best possible project. | No extra work |
-| **MongoDB Atlas** (MLH) | M5Stack IoT Kit per member | Free M0 cluster replaces local JSON/CSV storage. | Person 1, Hours 0–2 (~15 min setup) |
-| **Google Gemini** (MLH) | Google Swag Kit per member | Gemini 2.5 Flash auto-categorizes markets from titles. | Person 2, Hours 10–16 (~30 min) |
-| **GoDaddy Registry** (MLH) | ~$50 gift card | Register `shocktest.xyz` via `mlh.link/godaddyregistry`, code `YHack26`. | Person 1, Hour 0 (5 min) |
-| **Most Creative Hack** (YHack) | $100 | Select on Devpost. Quant research at a hackathon is inherently unusual. | Submission only |
-| **Best UI/UX** (YHack) | $100 | 30 min polish pass with full CSS/Tailwind control — much higher ceiling than Streamlit. | Person 3, Hours 20–24 |
-| **Most Viral Post** (@YHack) | $100 | Film 30-sec reel of dramatic shock on dashboard, post tagging @yhack.yale. | Anyone, Hours 20–24 (10 min) |
+**Total exposure: up to $6,350 + hardware + swag** across 8 categories.
 
-### Total Prize Exposure
+---
 
-**Up to $6,350 + hardware + swag** across 8 categories, with only ~2 hours of incremental work beyond the core project.
+## 13. MongoDB Schema Additions
 
-### Tracks We're NOT Targeting (and why)
+The existing schema stays the same. Add these fields:
 
-- **Entertainment** (Snapchat) — analytical project, not entertainment
-- **Personal AI Agent** (Harper) — not building an agent
-- **Societal Impact** (ASUS) — hard to argue vs. health/education projects
-- **Hardware** (QNX) — no physical hardware
-- **Snap Lens Studio** — irrelevant
-- **Hermes / Lava / Viam / K2 Think V2** — would require major pivots
-- **Hex API** — requires paid plan + full frontend rebuild; $2K isn't worth the scope risk
-- **Built with Zed** — IDE choice doesn't affect our project enough to compete
-- **Best First Hack** — check eligibility (requires ≤1 prior hackathon participant)
-- **Best Solo Hack** — team of 3
-- **ElevenLabs / Auth0 / Solana** — don't fit our project
+**`shock_events` collection — new fields per shock:**
+```
+fade_pnl_1h: float | null    // P&L per $1 if you faded this shock (= reversion value)
+fade_pnl_6h: float | null
+fade_pnl_24h: float | null
+```
+
+**`shock_results` collection — new fields in aggregate_stats:**
+```
+backtest: {
+  win_rate_1h: float,
+  win_rate_6h: float,
+  win_rate_24h: float,
+  avg_pnl_per_dollar_6h: float,
+  max_drawdown_6h: float,
+  total_trades: int,
+  by_category: {
+    "politics": { win_rate_6h, avg_pnl_6h, sample_size },
+    "crypto": { ... },
+    ...
+  }
+},
+distribution_6h: {
+  bin_edges: float[],      // histogram bin boundaries
+  bin_counts: int[],       // count per bin
+  percentiles: { p10, p25, p50, p75, p90 }
+}
+```
+
+**New API route: `GET /api/backtest`**
+Returns the backtest and distribution data from `shock_results` for the trade simulator.

@@ -1,1204 +1,204 @@
-# ShockTest — Detailed Build Playbook
+# ShockTest — Detailed Build Playbook v2
 ## Hour-by-Hour Instructions for Each Team Member
 ### YHack Spring 2026 · 24-Hour Build
 
 ---
 
 > **How to use this document:** Each person follows their column independently. Steps marked with 🔗 are handoff points where you depend on or unblock someone else. Steps marked with ✅ have a "done" check — verify before moving on. Steps marked with ⚠️ have a fallback if something goes wrong.
+>
+> **v2 changes:** Restructured Hours 10–24 to pivot from "research dashboard" to "trading signal + decision tool." The fade-strategy backtest is now core (not stretch). A trade simulator component is now required. Configurable controls (θ slider, horizon picker) are now required.
 
 ---
 
-## HOUR 0–2 · Setup, Data Verification & Prize Infra
+## HOURS 0–10 · COMPLETED
+
+> Hours 0–10 are done. Summary of what should exist at this point:
+
+**Person 1 (Data Pipeline) — Done:**
+- ✅ GoDaddy domain registered
+- ✅ MongoDB Atlas M0 cluster running, connection string shared
+- ✅ Polymarket API verified, data shape documented
+- ✅ 50+ Polymarket markets with price history in `market_series`
+- ✅ 20+ Manifold markets in `market_series`
+- ✅ All time series resampled to consistent format (unix seconds, float 0-1)
+
+**Person 2 (Analysis) — Done:**
+- ✅ `helpers.py` with `get_db()`, `load_market_series()`, `get_delta()`
+- ✅ `shock_detector.py` with `find_shocks()` implemented and tested
+- ✅ Shock detection run on all markets → `shock_events` collection populated (≥15 shocks)
+- ✅ Top 3-5 shocks manually verified as real market moves (not artifacts)
+
+**Person 3 (Frontend) — Done:**
+- ✅ Next.js app scaffolded with TypeScript, Tailwind, Recharts
+- ✅ MongoDB connection singleton (`lib/mongodb.ts`)
+- ✅ API routes: `/api/shocks`, `/api/markets`, `/api/stats` — reading from MongoDB
+- ✅ Skeleton deployed to Vercel
+- ✅ ShocksTable component built (with dummy or real data)
+- ✅ PriceChart component built (Recharts LineChart with shock window highlight)
+- ✅ Per-shock detail page (`/shock/[id]`) built
+
+---
+
+## HOUR 10–16 · CORE TRADING TOOL BUILD (CURRENT PHASE)
+
+This is the critical phase. By Hour 16, the project transforms from "research dashboard" into "trading decision tool."
 
 ### Person 1 (Data Pipeline)
 
-**Minute 0–5 · GoDaddy Domain**
-- Go to `mlh.link/godaddyregistry`
-- Register `shocktest.xyz` (or `.dev`, `.tech` — pick what's available)
-- Use code `YHack26` at checkout
-- Save the domain name — share with team in group chat
-- ✅ Done when: you have a confirmed domain registration
+**Hour 10–12 · Expand Data + Support Backtest**
 
-**Minute 5–20 · MongoDB Atlas Setup**
-- Go to `mongodb.com/atlas`, create free account
-- Create a new project called `shocktest`
-- Deploy a free M0 cluster:
-  - Provider: AWS
-  - Region: `us-east-1`
-  - Cluster name: `shocktest`
-- Under Security → Database Access: create a user (e.g., `shocktest-admin` / generate a password). Save credentials.
-- Under Security → Network Access: click "Add IP Address" → "Allow Access from Anywhere" (`0.0.0.0/0`). This is fine for a hackathon — restrict later.
-- Go to Deployment → Database → Connect → Drivers → copy the connection string
-- It will look like: `mongodb+srv://shocktest-admin:<password>@shocktest.xxxxx.mongodb.net/?retryWrites=true&w=majority`
-- Replace `<password>` with your actual password
-- 🔗 Share the connection string with Person 2 and Person 3 immediately
-- ✅ Done when: you have a connection string and have shared it with the team
+- Expand to 100+ total markets if not already there. Fetch more Polymarket or Manifold markets as needed.
+- Monitor MongoDB storage in Atlas dashboard (free tier = 512MB).
+- Add `fade_pnl` fields to existing shock events — these are numerically identical to the reversion values but stored explicitly for the trade simulator:
 
-**Minute 20–30 · Test MongoDB Connection**
-```bash
-pip install pymongo
-```
 ```python
-# test_mongo.py
-from pymongo import MongoClient
-
-MONGO_URI = "mongodb+srv://shocktest-admin:<password>@shocktest.xxxxx.mongodb.net/?retryWrites=true&w=majority"
-client = MongoClient(MONGO_URI)
-db = client["shocktest"]
-
-# Test write
-db["test"].insert_one({"status": "connected"})
-result = db["test"].find_one({"status": "connected"})
-print(f"MongoDB connected: {result}")
-db["test"].drop()
-```
-- ✅ Done when: script prints `MongoDB connected: {'_id': ..., 'status': 'connected'}`
-- ⚠️ If connection fails: check IP whitelist, check password, check cluster is deployed. If still stuck after 10 min, fall back to local JSON files and revisit later.
-
-**Minute 30–60 · Install Polymarket Package & Verify Data**
-```bash
-pip install polymarket-apis requests pandas numpy
-```
-```python
-# test_polymarket.py
-from polymarket_apis import PolymarketAPI
-
-api = PolymarketAPI()
-
-# 1. Fetch markets
-markets = api.get_markets(limit=10, active=True)
-for m in markets:
-    print(f"Question: {m.get('question', 'N/A')}")
-    print(f"  token_ids: {m.get('clobTokenIds', 'N/A')}")
-    print(f"  outcomePrices: {m.get('outcomePrices', 'N/A')}")
-    print(f"  volume: {m.get('volume', 'N/A')}")
-    print("---")
-
-# 2. Pick one token_id and test price history
-token_id = markets[0]['clobTokenIds'][0]  # adjust based on actual field name
-print(f"\nTesting price history for token: {token_id}")
-
-history = api.get_price_history(token_id=token_id)
-print(f"Got {len(history)} data points")
-if len(history) > 0:
-    print(f"Sample point: {history[0]}")
-    print(f"Fields available: {list(history[0].keys())}")
-```
-
-**⚠️ IMPORTANT — the `polymarket-apis` package may have slightly different method names or field names than documented. If the above doesn't work:**
-1. Try `from polymarket_apis import GammaClient` and check available methods
-2. Fall back to raw requests:
-```python
-import requests
-
-# Raw Gamma API — always works, no package needed
-resp = requests.get("https://gamma-api.polymarket.com/markets", params={"active": "true", "limit": 10})
-markets = resp.json()
-print(f"Got {len(markets)} markets")
-print(f"Fields: {list(markets[0].keys())}")
-```
-3. For price history, the raw endpoint is: `https://gamma-api.polymarket.com/prices/history?tokenId={token_id}&interval=2m`
-
-**Minute 60–90 · Document the Actual Data Shape**
-After confirming the API works, write down the EXACT field names and structure you see. Create a file:
-```python
-# data_shape.py — FILL THIS IN with actual fields you observed
+# add_fade_pnl.py
 """
-MARKET OBJECT FIELDS:
-- question: str (the market title)
-- clobTokenIds: list[str] (token IDs for Yes/No outcomes)
-- outcomePrices: str (current prices, e.g. "[0.65, 0.35]")
-- volume: str (total volume traded)
-- liquidity: str
-- active: bool
-- closed: bool
-- slug: str
-- [ADD ANY OTHER RELEVANT FIELDS]
-
-PRICE HISTORY POINT FIELDS:
-- t: int (unix timestamp) OR timestamp: str (ISO format)
-- p: float (price/probability 0-1) OR price: str
-- [ADD ACTUAL FIELDS YOU SEE]
-"""
-
-# Example: save one market's full data for Person 2 and Person 3
-SAMPLE_MARKET = {
-    # paste actual market object here
-}
-
-SAMPLE_PRICE_HISTORY = [
-    # paste first 5 price history points here
-]
-```
-- 🔗 Push `data_shape.py` to repo or share in group chat — Person 2 and Person 3 need this to write their code
-- ✅ Done when: you have a working API call, know the exact field names, and have shared them with the team
-
-**Minute 90–120 · Store First Market in MongoDB**
-```python
-# seed_one_market.py
-from pymongo import MongoClient
-import requests  # or use polymarket_apis
-
-MONGO_URI = "your_connection_string"
-client = MongoClient(MONGO_URI)
-db = client["shocktest"]
-
-# Fetch one market + its price history
-# (use whatever method worked in your testing above)
-market = # ... fetch one market
-token_id = # ... extract token_id
-history = # ... fetch price history for that token_id
-
-# Store in MongoDB
-doc = {
-    "market_id": market.get("id") or market.get("slug"),
-    "source": "polymarket",
-    "question": market["question"],
-    "token_id": token_id,
-    "volume": float(market.get("volume", 0)),
-    "series": [{"t": point["t"], "p": float(point["p"])} for point in history],
-    # ^ adjust field names based on what you actually see in the data
-    "category": None  # Gemini fills this in later
-}
-
-db["market_series"].insert_one(doc)
-print(f"Stored market: {doc['question']}")
-print(f"  Points: {len(doc['series'])}")
-print(f"  Time range: {doc['series'][0]['t']} to {doc['series'][-1]['t']}")
-
-# Verify
-stored = db["market_series"].find_one({"market_id": doc["market_id"]})
-print(f"  Verified in MongoDB: {stored['question']}")
-```
-- 🔗 **DECISION GATE:** If Polymarket data has good 2-min resolution price history → proceed with Polymarket as primary. If data is sparse or missing → swap to Manifold as primary (see Manifold fallback below).
-- ✅ Done when: one market document with time series is in MongoDB `market_series` collection
-
-**Manifold Fallback (only if Polymarket fails):**
-```python
-import requests
-
-# Manifold markets
-resp = requests.get("https://manifold.markets/api/v0/markets", params={"limit": 10})
-markets = resp.json()
-
-# Manifold bet history (this IS the price history)
-market_id = markets[0]["id"]
-bets = requests.get(f"https://manifold.markets/api/v0/bets", params={"contractId": market_id, "limit": 1000}).json()
-# Each bet has: createdTime (ms timestamp), probAfter (probability after this bet)
-```
-
----
-
-### Person 2 (Analysis)
-
-**Minute 0–30 · Environment Setup**
-```bash
-pip install polymarket-apis pymongo requests pandas numpy google-generativeai
-```
-- Wait for Person 1's MongoDB connection string — add it to your environment
-- Wait for Person 1's data shape confirmation
-
-**Minute 30–60 · Help Verify Polymarket Data**
-- Help Person 1 test the Polymarket API from your machine
-- Independently verify: can you call `get_markets()` and `get_price_history()`?
-- Look at the price history data specifically:
-  - What's the time resolution? (should be ~2 min between points)
-  - Are prices between 0 and 1?
-  - Are there gaps in the time series?
-  - How far back does history go?
-
-```python
-# analyze_data_quality.py
-import pandas as pd
-
-# Use the price history Person 1 fetched, or fetch your own
-history = # ... however you get it
-
-df = pd.DataFrame(history)
-df['t'] = pd.to_datetime(df['t'], unit='s')  # adjust based on actual timestamp format
-df = df.sort_values('t')
-
-print(f"Time range: {df['t'].min()} to {df['t'].max()}")
-print(f"Total points: {len(df)}")
-print(f"Avg interval: {df['t'].diff().mean()}")
-print(f"Price range: {df['p'].min():.4f} to {df['p'].max():.4f}")
-print(f"Largest single-step move: {df['p'].diff().abs().max():.4f}")
-```
-
-**Minute 60–120 · Plan Metrics & Start Writing Helpers**
-Once you know the data shape, start writing the analysis module structure:
-
-```python
-# analysis/__init__.py — leave empty
-
-# analysis/helpers.py
-import pandas as pd
-import numpy as np
-from pymongo import MongoClient
-
-MONGO_URI = "your_connection_string"
-
-def get_db():
-    """Return MongoDB database handle."""
-    client = MongoClient(MONGO_URI)
-    return client["shocktest"]
-
-def load_market_series(market_id: str) -> pd.DataFrame:
-    """
-    Load a market's price time series from MongoDB.
-    Returns DataFrame with columns: t (datetime), p (float 0-1)
-    """
-    db = get_db()
-    doc = db["market_series"].find_one({"market_id": market_id})
-    if doc is None:
-        raise ValueError(f"Market {market_id} not found")
-    
-    df = pd.DataFrame(doc["series"])
-    df["t"] = pd.to_datetime(df["t"], unit="s")  # adjust unit based on actual data
-    df = df.sort_values("t").reset_index(drop=True)
-    return df
-
-def get_delta(series: pd.DataFrame, window_minutes: int = 60) -> pd.Series:
-    """
-    Compute rolling price change over a time window.
-    
-    Args:
-        series: DataFrame with columns t (datetime), p (float)
-        window_minutes: lookback window in minutes
-    
-    Returns:
-        Series of delta values aligned with the input index
-    """
-    # Resample to regular intervals first
-    df = series.set_index("t").resample("2min").last().interpolate()
-    
-    # Number of periods in the window
-    periods = window_minutes // 2  # 2-min resolution
-    
-    # Rolling delta
-    delta = df["p"] - df["p"].shift(periods)
-    return delta
-```
-
-- 🔗 Wait for Person 1's `data_shape.py` to confirm field names before finalizing
-- ✅ Done when: `helpers.py` has `load_market_series()` and `get_delta()` implemented and tested against the sample market in MongoDB
-
----
-
-### Person 3 (Frontend)
-
-**Minute 0–30 · Scaffold Next.js App**
-```bash
-npx create-next-app@latest shocktest-dashboard --typescript --tailwind --app --eslint
-cd shocktest-dashboard
-npm install recharts mongodb
-```
-
-Project structure to aim for:
-```
-shocktest-dashboard/
-├── app/
-│   ├── layout.tsx          # Root layout with fonts, metadata
-│   ├── page.tsx            # Main dashboard page
-│   ├── api/
-│   │   ├── shocks/route.ts     # GET /api/shocks — returns all shock events
-│   │   ├── markets/route.ts    # GET /api/markets — returns market list
-│   │   └── stats/route.ts      # GET /api/stats — returns aggregate stats
-│   └── shock/[id]/
-│       └── page.tsx        # Per-shock detail page with probability chart
-├── components/
-│   ├── ShocksTable.tsx     # Sortable, filterable shocks table
-│   ├── PriceChart.tsx      # Recharts LineChart for probability over time
-│   ├── StatsCards.tsx      # Summary stat cards (reversion rate, sample size, etc.)
-│   ├── Histogram.tsx       # Distribution of post-shock moves
-│   └── Header.tsx          # App header with title + branding
-├── lib/
-│   └── mongodb.ts          # MongoDB connection singleton
-├── .env.local              # MONGODB_URI=mongodb+srv://...
-└── package.json
-```
-
-**Minute 30–60 · MongoDB Connection + API Route Shell**
-
-Create `.env.local`:
-```
-MONGODB_URI=mongodb+srv://shocktest-admin:<password>@shocktest.xxxxx.mongodb.net/shocktest?retryWrites=true&w=majority
-```
-(🔗 Get the connection string from Person 1)
-
-```typescript
-// lib/mongodb.ts
-import { MongoClient } from 'mongodb';
-
-if (!process.env.MONGODB_URI) {
-  throw new Error('Please add MONGODB_URI to .env.local');
-}
-
-const uri = process.env.MONGODB_URI;
-const options = {};
-
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
-
-if (process.env.NODE_ENV === 'development') {
-  let globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options);
-    globalWithMongo._mongoClientPromise = client.connect();
-  }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-  client = new MongoClient(uri, options);
-  clientPromise = client.connect();
-}
-
-export default clientPromise;
-```
-
-```typescript
-// app/api/shocks/route.ts
-import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-
-export async function GET() {
-  try {
-    const client = await clientPromise;
-    const db = client.db('shocktest');
-    
-    const shocks = await db
-      .collection('shock_events')
-      .find({})
-      .sort({ delta: -1 })
-      .limit(100)
-      .toArray();
-    
-    return NextResponse.json(shocks);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch shocks' }, { status: 500 });
-  }
-}
-```
-
-```typescript
-// app/api/stats/route.ts
-import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-
-export async function GET() {
-  try {
-    const client = await clientPromise;
-    const db = client.db('shocktest');
-    
-    const stats = await db
-      .collection('shock_results')
-      .findOne({ _id: 'aggregate_stats' });
-    
-    return NextResponse.json(stats || {
-      total_shocks: 0,
-      reversion_rate_1h: null,
-      reversion_rate_6h: null,
-      reversion_rate_24h: null,
-      mean_reversion_6h: null,
-      sample_size: 0
-    });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
-  }
-}
-```
-
-```typescript
-// app/api/markets/route.ts
-import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const marketId = searchParams.get('id');
-    
-    const client = await clientPromise;
-    const db = client.db('shocktest');
-    
-    if (marketId) {
-      // Return single market with full time series
-      const market = await db
-        .collection('market_series')
-        .findOne({ market_id: marketId });
-      return NextResponse.json(market);
-    }
-    
-    // Return all markets (without full series for list view)
-    const markets = await db
-      .collection('market_series')
-      .find({})
-      .project({ series: 0 }) // exclude the big array for list queries
-      .toArray();
-    
-    return NextResponse.json(markets);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch markets' }, { status: 500 });
-  }
-}
-```
-
-**Minute 60–90 · Deploy Skeleton to Vercel**
-```bash
-npm install -g vercel
-vercel login
-vercel --prod
-```
-- Vercel will ask about settings — accept defaults
-- Add environment variable in Vercel dashboard: Settings → Environment Variables → add `MONGODB_URI`
-- ✅ Done when: you have a live URL like `shocktest-dashboard.vercel.app` that loads (even if blank)
-
-**Minute 90–120 · Build with Dummy Data**
-Since Person 1 is still populating MongoDB, build components using hardcoded dummy data that matches the expected schema:
-
-```typescript
-// lib/dummyData.ts
-export const DUMMY_SHOCKS = [
-  {
-    market_id: "will-trump-win-2028",
-    source: "polymarket",
-    question: "Will Trump win the 2028 presidential election?",
-    category: "politics",
-    t1: "2026-03-15T14:00:00Z",
-    t2: "2026-03-15T14:30:00Z",
-    p_before: 0.42,
-    p_after: 0.57,
-    delta: 0.15,
-    post_move_1h: -0.08,
-    post_move_6h: -0.11,
-    post_move_24h: -0.09,
-    reversion_1h: 0.08,
-    reversion_6h: 0.11,
-    reversion_24h: 0.09,
-  },
-  {
-    market_id: "btc-above-100k-june",
-    source: "polymarket",
-    question: "Will Bitcoin be above $100k on June 30?",
-    category: "crypto",
-    t1: "2026-03-20T09:00:00Z",
-    t2: "2026-03-20T09:45:00Z",
-    p_before: 0.65,
-    p_after: 0.52,
-    delta: -0.13,
-    post_move_1h: 0.04,
-    post_move_6h: 0.07,
-    post_move_24h: 0.10,
-    reversion_1h: 0.04,
-    reversion_6h: 0.07,
-    reversion_24h: 0.10,
-  },
-  // Add 5-8 more dummy shocks with varied categories, directions, magnitudes
-];
-
-export const DUMMY_STATS = {
-  total_shocks: 47,
-  reversion_rate_1h: 0.62,
-  reversion_rate_6h: 0.68,
-  reversion_rate_24h: 0.55,
-  mean_reversion_6h: 0.034,
-  std_reversion_6h: 0.021,
-  sample_size: 47,
-  by_category: {
-    politics: { count: 18, reversion_rate_6h: 0.72 },
-    crypto: { count: 15, reversion_rate_6h: 0.60 },
-    sports: { count: 8, reversion_rate_6h: 0.63 },
-    other: { count: 6, reversion_rate_6h: 0.67 },
-  }
-};
-
-export const DUMMY_PRICE_SERIES = [
-  // 100+ points simulating 2-min interval data around a shock
-  // timestamps as ISO strings, prices as floats 0-1
-  // Show: stable → sudden jump → partial reversion
-];
-```
-- Use this dummy data to build all UI components before real data is ready
-- When real data flows in during Hours 16–20, just remove the dummy imports and fetch from your API routes instead
-- ✅ Done when: `npm run dev` serves a page at `localhost:3000` that shows dummy data
-
----
-
-## HOUR 2–6 · Data Pipeline
-
-### Person 1 (Data Pipeline)
-
-**Goal:** Fetch 50+ Polymarket markets with full price history and store in MongoDB. Then pull supplemental Manifold markets.
-
-```python
-# fetch_polymarket.py
-from pymongo import MongoClient
-import requests
-import time
-
-MONGO_URI = "your_connection_string"
-client = MongoClient(MONGO_URI)
-db = client["shocktest"]
-
-def fetch_polymarket_markets(limit=100):
-    """Fetch active binary markets from Polymarket, sorted by volume."""
-    resp = requests.get("https://gamma-api.polymarket.com/markets", params={
-        "active": "true",
-        "limit": limit,
-        "order": "volume24hr",
-        "ascending": "false"
-    })
-    resp.raise_for_status()
-    markets = resp.json()
-    
-    # Filter: binary outcomes only, reasonable volume
-    binary_markets = []
-    for m in markets:
-        token_ids = m.get("clobTokenIds", [])
-        # adjust parsing based on actual data shape from data_shape.py
-        if len(token_ids) == 2 and float(m.get("volume", 0)) > 1000:
-            binary_markets.append(m)
-    
-    print(f"Found {len(binary_markets)} binary markets with volume > $1000")
-    return binary_markets
-
-def fetch_price_history(token_id: str):
-    """
-    Fetch full price history for a token at 2-min resolution.
-    Adjust endpoint/params based on what actually worked in Hour 0-2 testing.
-    """
-    # Option A: use polymarket-apis package
-    # from polymarket_apis import PolymarketAPI
-    # api = PolymarketAPI()
-    # return api.get_price_history(token_id=token_id)
-    
-    # Option B: raw request (more reliable)
-    resp = requests.get(f"https://gamma-api.polymarket.com/prices/history", params={
-        "tokenId": token_id,
-        "interval": "max",  # or specific range — test what works
-        "fidelity": 2,      # 2-min candles — test what works
-    })
-    if resp.status_code == 200:
-        return resp.json()
-    else:
-        print(f"  Failed for {token_id}: {resp.status_code}")
-        return []
-
-def store_market(market: dict, history: list):
-    """Store one market + its price history in MongoDB."""
-    # Extract token_id (Yes outcome — adjust based on actual data)
-    token_id = market["clobTokenIds"][0]  # typically first is Yes
-    
-    doc = {
-        "market_id": market.get("id") or market.get("slug") or market.get("conditionId"),
-        "source": "polymarket",
-        "question": market["question"],
-        "token_id": token_id,
-        "volume": float(market.get("volume", 0)),
-        "series": [],  # will be populated below
-        "category": None,  # Gemini fills this in Hours 10-16
-    }
-    
-    # Normalize price history to consistent format
-    for point in history:
-        # ADJUST these field names based on actual API response
-        doc["series"].append({
-            "t": point.get("t") or point.get("timestamp"),
-            "p": float(point.get("p") or point.get("price", 0))
-        })
-    
-    # Sort by time
-    doc["series"].sort(key=lambda x: x["t"])
-    
-    # Upsert (avoid duplicates)
-    db["market_series"].update_one(
-        {"market_id": doc["market_id"]},
-        {"$set": doc},
-        upsert=True
-    )
-    
-    return len(doc["series"])
-
-# Main loop
-if __name__ == "__main__":
-    markets = fetch_polymarket_markets(limit=100)
-    
-    for i, market in enumerate(markets[:60]):  # start with 60, expand later
-        question = market["question"][:60]
-        token_id = market["clobTokenIds"][0]
-        
-        print(f"[{i+1}/{len(markets)}] {question}...")
-        
-        history = fetch_price_history(token_id)
-        if len(history) < 10:
-            print(f"  Skipping — only {len(history)} data points")
-            continue
-        
-        n_points = store_market(market, history)
-        print(f"  Stored {n_points} price points")
-        
-        time.sleep(0.5)  # be polite to the API
-    
-    # Summary
-    count = db["market_series"].count_documents({"source": "polymarket"})
-    print(f"\n=== Total Polymarket markets in MongoDB: {count} ===")
-```
-
-**After Polymarket, fetch supplemental Manifold markets (20–30):**
-```python
-# fetch_manifold.py
-import requests
-import time
-from pymongo import MongoClient
-
-MONGO_URI = "your_connection_string"
-client = MongoClient(MONGO_URI)
-db = client["shocktest"]
-
-def fetch_manifold_markets(limit=30):
-    """Fetch active binary markets from Manifold."""
-    resp = requests.get("https://manifold.markets/api/v0/markets", params={"limit": limit})
-    markets = resp.json()
-    
-    # Filter for binary (BINARY outcomeType)
-    binary = [m for m in markets if m.get("outcomeType") == "BINARY" and not m.get("isResolved")]
-    print(f"Found {len(binary)} active binary Manifold markets")
-    return binary
-
-def fetch_manifold_bets(contract_id: str, limit=5000):
-    """Fetch bet history for a Manifold market — this IS the price history."""
-    resp = requests.get("https://manifold.markets/api/v0/bets", params={
-        "contractId": contract_id,
-        "limit": limit,
-    })
-    return resp.json()
-
-def store_manifold_market(market: dict, bets: list):
-    """Convert Manifold bets to time series and store in MongoDB."""
-    doc = {
-        "market_id": f"manifold_{market['id']}",
-        "source": "manifold",
-        "question": market["question"],
-        "token_id": market["id"],
-        "volume": float(market.get("volume", 0)),
-        "series": [],
-        "category": None,
-    }
-    
-    for bet in bets:
-        doc["series"].append({
-            "t": bet["createdTime"] / 1000,  # Manifold uses ms timestamps
-            "p": float(bet.get("probAfter", 0))
-        })
-    
-    doc["series"].sort(key=lambda x: x["t"])
-    
-    # Deduplicate / downsample if too many points
-    # (Manifold can have many bets per minute)
-    
-    db["market_series"].update_one(
-        {"market_id": doc["market_id"]},
-        {"$set": doc},
-        upsert=True
-    )
-    return len(doc["series"])
-
-if __name__ == "__main__":
-    markets = fetch_manifold_markets(limit=30)
-    
-    for i, market in enumerate(markets):
-        print(f"[{i+1}/{len(markets)}] {market['question'][:60]}...")
-        bets = fetch_manifold_bets(market["id"])
-        if len(bets) < 20:
-            print(f"  Skipping — only {len(bets)} bets")
-            continue
-        n = store_manifold_market(market, bets)
-        print(f"  Stored {n} points")
-        time.sleep(0.3)
-    
-    total = db["market_series"].count_documents({})
-    poly = db["market_series"].count_documents({"source": "polymarket"})
-    mani = db["market_series"].count_documents({"source": "manifold"})
-    print(f"\n=== MongoDB totals: {total} markets ({poly} Polymarket, {mani} Manifold) ===")
-```
-
-- 🔗 Person 2 can start running shock detection as soon as markets appear in MongoDB — ping them when you have ≥20 markets stored
-- ✅ Done when: ≥50 Polymarket + ≥20 Manifold markets with price history in MongoDB `market_series` collection
-
----
-
-### Person 2 (Analysis)
-
-**Goal:** Write the core shock detection and delta calculation functions. Test against real data as soon as Person 1 has markets in MongoDB.
-
-**Hour 2–4 · Implement Core Analysis Functions**
-
-```python
-# analysis/shock_detector.py
-import pandas as pd
-import numpy as np
-from pymongo import MongoClient
-from datetime import datetime, timedelta
-
-MONGO_URI = "your_connection_string"
-
-def get_db():
-    client = MongoClient(MONGO_URI)
-    return client["shocktest"]
-
-def load_market_series(market_id: str) -> pd.DataFrame:
-    """
-    Load market price series from MongoDB.
-    Returns DataFrame with columns: t (datetime), p (float 0-1)
-    """
-    db = get_db()
-    doc = db["market_series"].find_one({"market_id": market_id})
-    if not doc or not doc.get("series"):
-        return pd.DataFrame()
-    
-    df = pd.DataFrame(doc["series"])
-    
-    # Handle timestamp format — adjust based on actual data
-    if isinstance(df["t"].iloc[0], (int, float)):
-        df["t"] = pd.to_datetime(df["t"], unit="s")
-    else:
-        df["t"] = pd.to_datetime(df["t"])
-    
-    df["p"] = df["p"].astype(float)
-    df = df.sort_values("t").reset_index(drop=True)
-    df = df.drop_duplicates(subset=["t"])
-    return df
-
-def resample_to_regular(df: pd.DataFrame, interval_min: int = 2) -> pd.DataFrame:
-    """
-    Resample irregular time series to fixed intervals.
-    Forward-fills gaps, interpolates where possible.
-    """
-    if df.empty:
-        return df
-    
-    df = df.set_index("t")
-    df = df.resample(f"{interval_min}min").last()
-    df = df.interpolate(method="time", limit=5)  # fill gaps up to 10 min
-    df = df.dropna()
-    df = df.reset_index()
-    return df
-
-def find_shocks(
-    market_id: str,
-    theta: float = 0.08,
-    window_minutes: int = 60,
-    interval_min: int = 2,
-) -> list[dict]:
-    """
-    Detect probability shocks in a market's time series.
-    
-    A shock occurs when |p(t2) - p(t1)| >= theta within window_minutes.
-    
-    Args:
-        market_id: ID of market in MongoDB
-        theta: minimum absolute probability change to qualify as shock (default 0.08 = 8pp)
-        window_minutes: time window to look for the move (default 60 min)
-        interval_min: data resolution in minutes (default 2)
-    
-    Returns:
-        List of shock dicts: {market_id, t1, t2, p_before, p_after, delta}
-    """
-    df = load_market_series(market_id)
-    if df.empty or len(df) < 10:
-        return []
-    
-    df = resample_to_regular(df, interval_min)
-    if df.empty:
-        return []
-    
-    lookback = window_minutes // interval_min  # number of periods in window
-    shocks = []
-    
-    for i in range(lookback, len(df)):
-        # Look at the change from i-lookback to i
-        p_now = df.loc[i, "p"]
-        p_then = df.loc[i - lookback, "p"]
-        delta = p_now - p_then
-        
-        if abs(delta) >= theta:
-            shock = {
-                "market_id": market_id,
-                "t1": df.loc[i - lookback, "t"].isoformat(),
-                "t2": df.loc[i, "t"].isoformat(),
-                "p_before": round(float(p_then), 4),
-                "p_after": round(float(p_now), 4),
-                "delta": round(float(delta), 4),
-                "abs_delta": round(abs(float(delta)), 4),
-            }
-            shocks.append(shock)
-    
-    # Deduplicate: if multiple consecutive rows trigger, keep only the largest
-    if not shocks:
-        return []
-    
-    deduped = [shocks[0]]
-    for s in shocks[1:]:
-        prev = deduped[-1]
-        # If this shock's t2 is within the window of the previous shock's t2, keep the larger one
-        t2_prev = pd.Timestamp(prev["t2"])
-        t2_curr = pd.Timestamp(s["t2"])
-        if (t2_curr - t2_prev).total_seconds() < window_minutes * 60:
-            if s["abs_delta"] > prev["abs_delta"]:
-                deduped[-1] = s  # replace with larger shock
-        else:
-            deduped.append(s)
-    
-    return deduped
-```
-
-**Hour 4–6 · Test Shock Detector on Real Data**
-```python
-# test_shock_detection.py
-from analysis.shock_detector import find_shocks, get_db
-
-db = get_db()
-
-# Get all market IDs from MongoDB
-market_ids = db["market_series"].distinct("market_id")
-print(f"Testing shock detection on {len(market_ids)} markets...")
-
-all_shocks = []
-for mid in market_ids:
-    shocks = find_shocks(mid, theta=0.08, window_minutes=60)
-    if shocks:
-        print(f"  {mid}: {len(shocks)} shocks found")
-        for s in shocks:
-            print(f"    {s['t1']} → {s['t2']}: {s['p_before']:.2f} → {s['p_after']:.2f} (Δ={s['delta']:+.2f})")
-    all_shocks.extend(shocks)
-
-print(f"\n=== Total shocks found (θ=0.08): {len(all_shocks)} ===")
-
-# If too few shocks, try lower threshold
-if len(all_shocks) < 15:
-    print("\nToo few shocks at θ=0.08, trying θ=0.05...")
-    all_shocks_05 = []
-    for mid in market_ids:
-        shocks = find_shocks(mid, theta=0.05, window_minutes=60)
-        all_shocks_05.extend(shocks)
-    print(f"Total shocks at θ=0.05: {len(all_shocks_05)}")
-```
-
-- Store detected shocks in MongoDB:
-```python
-# After detection runs:
-for shock in all_shocks:
-    # Add metadata from the market doc
-    market_doc = db["market_series"].find_one({"market_id": shock["market_id"]})
-    shock["question"] = market_doc.get("question", "")
-    shock["source"] = market_doc.get("source", "")
-    shock["category"] = market_doc.get("category")  # None until Gemini fills it
-
-db["shock_events"].drop()  # clear previous runs
-if all_shocks:
-    db["shock_events"].insert_many(all_shocks)
-    print(f"Stored {len(all_shocks)} shocks in MongoDB")
-```
-
-- 🔗 Ping Person 3: shock_events collection now has data — they can start fetching from `/api/shocks`
-- ✅ Done when: `shock_events` collection in MongoDB has ≥15 shock records. If not, lower theta to 0.05.
-
----
-
-### Person 3 (Frontend)
-
-**Goal:** Build the core UI components using dummy data. All components should be swappable to real data later by just changing the data source from dummy imports to fetch calls.
-
-**Hour 2–4 · Shocks Table Component**
-```typescript
-// components/ShocksTable.tsx
-'use client';
-
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-
-interface Shock {
-  market_id: string;
-  question: string;
-  source: string;
-  category: string | null;
-  t1: string;
-  t2: string;
-  p_before: number;
-  p_after: number;
-  delta: number;
-  abs_delta: number;
-  reversion_6h?: number;
-}
-
-interface ShocksTableProps {
-  shocks: Shock[];
-}
-
-export default function ShocksTable({ shocks }: ShocksTableProps) {
-  const [sortBy, setSortBy] = useState<'abs_delta' | 't2' | 'category'>('abs_delta');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  
-  const categories = useMemo(() => {
-    const cats = new Set(shocks.map(s => s.category).filter(Boolean));
-    return ['all', ...Array.from(cats)];
-  }, [shocks]);
-  
-  const sorted = useMemo(() => {
-    let filtered = categoryFilter === 'all' 
-      ? shocks 
-      : shocks.filter(s => s.category === categoryFilter);
-    
-    return filtered.sort((a, b) => {
-      const mul = sortDir === 'desc' ? -1 : 1;
-      if (sortBy === 'abs_delta') return mul * (a.abs_delta - b.abs_delta);
-      if (sortBy === 't2') return mul * (new Date(a.t2).getTime() - new Date(b.t2).getTime());
-      return 0;
-    });
-  }, [shocks, sortBy, sortDir, categoryFilter]);
-  
-  // Build this out with Claude Code — sortable headers, category filter dropdown,
-  // color-coded delta values (green for positive, red for negative),
-  // clickable rows that link to /shock/[market_id]
-  
-  return (
-    <div>
-      {/* Category filter buttons */}
-      {/* Table with sortable headers */}
-      {/* Each row links to /shock/[market_id] for detail view */}
-    </div>
-  );
-}
-```
-
-**Hour 4–6 · Price Chart Component**
-```typescript
-// components/PriceChart.tsx
-'use client';
-
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, ResponsiveContainer } from 'recharts';
-
-interface PricePoint {
-  t: string;  // ISO timestamp
-  p: number;  // probability 0-1
-}
-
-interface PriceChartProps {
-  series: PricePoint[];
-  shockT1?: string;  // shock window start
-  shockT2?: string;  // shock window end
-}
-
-export default function PriceChart({ series, shockT1, shockT2 }: PriceChartProps) {
-  const data = series.map(point => ({
-    time: new Date(point.t).toLocaleString(),
-    timestamp: new Date(point.t).getTime(),
-    probability: point.p * 100,  // display as percentage
-  }));
-  
-  return (
-    <ResponsiveContainer width="100%" height={400}>
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="time" tick={{ fontSize: 12 }} />
-        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-        <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, 'Probability']} />
-        <Line type="monotone" dataKey="probability" stroke="#2563eb" dot={false} strokeWidth={2} />
-        
-        {/* Highlight shock window */}
-        {shockT1 && shockT2 && (
-          <ReferenceArea
-            x1={new Date(shockT1).toLocaleString()}
-            x2={new Date(shockT2).toLocaleString()}
-            fill="#ef4444"
-            fillOpacity={0.15}
-            label="Shock"
-          />
-        )}
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-```
-
-- Build both components, test with dummy data at `localhost:3000`
-- Have Claude Code polish the styling — use Tailwind for layout, spacing, colors
-- ✅ Done when: shocks table renders with dummy data and is sortable; price chart renders a line with highlighted shock window
-
----
-
-## HOUR 6–10 · Shock Detection at Scale
-
-### Person 1 (Data Pipeline)
-
-**Goal:** Ensure data quality. Resample all time series to consistent intervals. Expand to 100+ markets if possible.
-
-```python
-# resample_all.py
-"""
-Go through all markets in MongoDB and ensure consistent time series format.
+For each shock event, add fade_pnl fields.
+fade_pnl = reversion value (positive = profit if you faded the shock)
+This is a convenience field for the frontend trade simulator.
 """
 from pymongo import MongoClient
-import pandas as pd
+import os
 
-MONGO_URI = "your_connection_string"
-db = MongoClient(MONGO_URI)["shocktest"]
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
 
-markets = list(db["market_series"].find({}))
-print(f"Processing {len(markets)} markets...")
-
-for market in markets:
-    series = market.get("series", [])
-    if len(series) < 10:
-        print(f"  SKIP {market['market_id']}: only {len(series)} points")
-        continue
-    
-    df = pd.DataFrame(series)
-    
-    # Ensure timestamps are unix seconds (float)
-    if isinstance(df["t"].iloc[0], str):
-        df["t"] = pd.to_datetime(df["t"]).astype(int) // 10**9
-    
-    # Ensure prices are float 0-1
-    df["p"] = df["p"].astype(float)
-    if df["p"].max() > 1:
-        df["p"] = df["p"] / 100  # might be in percentage format
-    
-    # Remove duplicates
-    df = df.drop_duplicates(subset=["t"]).sort_values("t")
-    
-    # Report quality
-    time_range_hrs = (df["t"].max() - df["t"].min()) / 3600
-    avg_gap_min = df["t"].diff().mean() / 60
-    
-    print(f"  {market['market_id'][:40]}: {len(df)} pts, {time_range_hrs:.0f}h range, ~{avg_gap_min:.1f}min avg gap")
-    
-    # Update MongoDB
-    db["market_series"].update_one(
-        {"_id": market["_id"]},
-        {"$set": {"series": df.to_dict("records")}}
-    )
-
-print("Done resampling.")
-```
-
-- If you have <80 markets, fetch more Polymarket or Manifold markets
-- ✅ Done when: all markets have clean, sorted time series with consistent timestamp format
-
----
-
-### Person 2 (Analysis)
-
-**Goal:** Run shock detection on all markets. Manually verify a few shocks look real.
-
-Run the shock detection from Hour 2–6 on all markets. Then manually spot-check:
-
-```python
-# verify_shocks.py
-"""
-Pull 3-5 detected shocks and visually inspect them.
-Print the price series around each shock so you can confirm they look real.
-"""
-from analysis.shock_detector import load_market_series, get_db
-import pandas as pd
-
-db = get_db()
-shocks = list(db["shock_events"].find().sort("abs_delta", -1).limit(5))
+shocks = list(db["shock_events"].find({}))
+print(f"Adding fade_pnl fields to {len(shocks)} shocks...")
 
 for shock in shocks:
-    print(f"\n{'='*60}")
-    print(f"Market: {shock.get('question', shock['market_id'])}")
-    print(f"Shock: {shock['p_before']:.2f} → {shock['p_after']:.2f} (Δ={shock['delta']:+.2f})")
-    print(f"Time: {shock['t1']} → {shock['t2']}")
+    update = {}
+    for h in ["1h", "6h", "24h"]:
+        rev = shock.get(f"reversion_{h}")
+        update[f"fade_pnl_{h}"] = rev  # same value, different semantic name
     
-    # Load full series and show context
-    df = load_market_series(shock["market_id"])
-    t2 = pd.Timestamp(shock["t2"])
+    db["shock_events"].update_one({"_id": shock["_id"]}, {"$set": update})
+
+print("Done.")
+```
+
+**Hour 12–14 · Compute Distribution Data for Trade Simulator**
+
+The trade simulator needs histogram data and percentile statistics. Compute these and add to `shock_results`:
+
+```python
+# compute_distribution.py
+"""
+Compute distribution parameters for the trade simulator.
+Stores histogram bins + percentiles in shock_results.
+"""
+import numpy as np
+from pymongo import MongoClient
+import os
+
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
+
+shocks = list(db["shock_events"].find({}))
+
+for horizon in ["1h", "6h", "24h"]:
+    key = f"reversion_{horizon}"
+    values = [s[key] for s in shocks if s.get(key) is not None]
     
-    # Show 2 hours before and 2 hours after the shock
-    window = df[(df["t"] >= t2 - pd.Timedelta(hours=2)) & (df["t"] <= t2 + pd.Timedelta(hours=2))]
+    if not values:
+        continue
     
-    print(f"\nPrice context (±2h around shock):")
-    for _, row in window.iterrows():
-        marker = " <<<" if abs((row["t"] - t2).total_seconds()) < 120 else ""
-        print(f"  {row['t']}  p={row['p']:.4f}{marker}")
+    values = np.array(values)
+    
+    # Histogram bins (for the frontend payoff chart)
+    bin_edges = np.linspace(values.min() - 0.01, values.max() + 0.01, 20)
+    bin_counts, _ = np.histogram(values, bins=bin_edges)
+    
+    # Percentiles (for the scenario analysis)
+    percentiles = {
+        "p10": round(float(np.percentile(values, 10)), 4),
+        "p25": round(float(np.percentile(values, 25)), 4),
+        "p50": round(float(np.percentile(values, 50)), 4),
+        "p75": round(float(np.percentile(values, 75)), 4),
+        "p90": round(float(np.percentile(values, 90)), 4),
+    }
+    
+    dist_data = {
+        f"distribution_{horizon}": {
+            "bin_edges": [round(float(x), 4) for x in bin_edges],
+            "bin_counts": [int(x) for x in bin_counts],
+            "percentiles": percentiles,
+            "mean": round(float(values.mean()), 4),
+            "std": round(float(values.std()), 4),
+            "min": round(float(values.min()), 4),
+            "max": round(float(values.max()), 4),
+        }
+    }
+    
+    db["shock_results"].update_one(
+        {"_id": "aggregate_stats"},
+        {"$set": dist_data},
+        upsert=True
+    )
+    
+    print(f"{horizon}: {len(values)} samples, mean={values.mean():.4f}, std={values.std():.4f}")
+
+# Also compute backtest summary stats
+all_rev_6h = [s["reversion_6h"] for s in shocks if s.get("reversion_6h") is not None]
+if all_rev_6h:
+    arr = np.array(all_rev_6h)
+    
+    # By category
+    categories = set(s.get("category") for s in shocks if s.get("category"))
+    by_cat = {}
+    for cat in categories:
+        cat_vals = [s["reversion_6h"] for s in shocks 
+                    if s.get("category") == cat and s.get("reversion_6h") is not None]
+        if cat_vals:
+            cat_arr = np.array(cat_vals)
+            by_cat[cat] = {
+                "win_rate_6h": round(float(np.mean(cat_arr > 0)), 4),
+                "avg_pnl_6h": round(float(cat_arr.mean()), 4),
+                "sample_size": len(cat_vals),
+            }
+    
+    backtest = {
+        "win_rate_1h": None,
+        "win_rate_6h": round(float(np.mean(arr > 0)), 4),
+        "win_rate_24h": None,
+        "avg_pnl_per_dollar_6h": round(float(arr.mean()), 4),
+        "max_drawdown_6h": round(float(arr.min()), 4),
+        "total_trades": len(all_rev_6h),
+        "by_category": by_cat,
+    }
+    
+    # Fill in 1h and 24h
+    for h, key in [("1h", "reversion_1h"), ("24h", "reversion_24h")]:
+        vals = [s[key] for s in shocks if s.get(key) is not None]
+        if vals:
+            backtest[f"win_rate_{h}"] = round(float(np.mean(np.array(vals) > 0)), 4)
+    
+    db["shock_results"].update_one(
+        {"_id": "aggregate_stats"},
+        {"$set": {"backtest": backtest}},
+        upsert=True
+    )
+    
+    print(f"\nBacktest 6h: win_rate={backtest['win_rate_6h']:.1%}, avg_pnl={backtest['avg_pnl_per_dollar_6h']:.4f}")
+
+print("Distribution + backtest data stored in shock_results.")
 ```
 
-- If shocks look like data artifacts (e.g., a market going from 0.50 to 0.99 because it resolved), add a filter to exclude resolved/closed markets
-- ✅ Done when: you've visually confirmed that ≥3 detected shocks represent real market moves, not artifacts
+**Hour 14–16 · Quality Assurance**
+- Verify all data is consistent: run `mise run db:status` — all three collections should have data
+- Spot-check: query `shock_results` and confirm `backtest` and `distribution_6h` fields exist
+- Help Person 3 with any data format issues in the API routes
+- 🔗 Ping Person 3 when distribution + backtest data is ready in MongoDB
 
----
-
-### Person 3 (Frontend)
-
-**Goal:** Build the per-shock detail page and start on the histogram component.
-
-**Per-Shock Detail Page:**
-```typescript
-// app/shock/[id]/page.tsx
-// This page shows:
-// 1. Market question as title
-// 2. Shock details (before/after price, delta, time window)
-// 3. Full probability chart with shock window highlighted
-// 4. Post-shock stats (1h/6h/24h reversion) if available
-
-// Fetch market series from /api/markets?id={market_id}
-// Fetch shock details from /api/shocks (filter by market_id)
-// Render PriceChart component with the series data + shock window
-```
-
-**Histogram Component:**
-```typescript
-// components/Histogram.tsx
-// Shows distribution of post-shock probability moves
-// X-axis: reversion magnitude (negative = continuation, positive = reversion)
-// Y-axis: count of shocks
-// Use Recharts BarChart with bins
-
-// Key design choices:
-// - Color bars: green for reversion (positive), red for continuation (negative)
-// - Add vertical reference line at x=0
-// - Show mean reversion as a dashed vertical line
-// - Label the axes clearly for demo
-```
-
-**Stats Cards Component:**
-```typescript
-// components/StatsCards.tsx
-// 3-4 summary cards at top of dashboard:
-// 1. "Total Shocks Detected" — large number
-// 2. "6h Reversion Rate" — percentage with color coding (>50% = green)
-// 3. "Mean Reversion Magnitude" — percentage points
-// 4. "Markets Analyzed" — count
-// 
-// Use a clean card grid with Tailwind
-```
-
-- ✅ Done when: detail page renders with dummy data, histogram shows dummy distribution, stats cards display
-
----
-
-## HOUR 10–16 · Post-Shock Analysis + Gemini Categorization
-
-### Person 1 (Data Pipeline)
-
-**Goal:** Expand to 100+ markets total. Support Person 2 with any data quality issues.
-
-- Fetch remaining Polymarket markets to hit 80+
-- Fetch additional Manifold markets to hit 100+ total
-- Monitor MongoDB storage (free tier = 512MB — check in Atlas dashboard)
-- Help Person 2 debug any data format issues
-- If ahead of schedule: start building the export/README
+- ✅ Done when: `shock_results` contains `backtest` object and `distribution_6h` object with real numbers
 
 ---
 
 ### Person 2 (Analysis)
 
-**Goal:** Compute post-shock outcomes. Integrate Gemini for market categorization. Generate aggregate statistics.
+**Hour 10–12 · Post-Shock Outcomes**
 
-**Post-Shock Outcome Computation:**
+Run `post_shock.py` to compute reversion values for all detected shocks:
+
 ```python
 # analysis/post_shock.py
 import pandas as pd
@@ -1208,13 +208,6 @@ from analysis.shock_detector import load_market_series, get_db
 def compute_post_shock_outcomes(shock: dict, horizons_hours: list = [1, 6, 24]) -> dict:
     """
     For a detected shock, measure what happens at each horizon.
-    
-    Args:
-        shock: dict with market_id, t2, delta
-        horizons_hours: list of hours to measure after the shock
-    
-    Returns:
-        dict with post_move_Xh and reversion_Xh for each horizon
     """
     df = load_market_series(shock["market_id"])
     if df.empty:
@@ -1228,12 +221,10 @@ def compute_post_shock_outcomes(shock: dict, horizons_hours: list = [1, 6, 24]) 
     for h in horizons_hours:
         target_time = t2 + pd.Timedelta(hours=h)
         
-        # Find the closest data point to the target time
         time_diffs = abs(df["t"] - target_time)
         closest_idx = time_diffs.idxmin()
         closest_time = df.loc[closest_idx, "t"]
         
-        # Only use if within 30 min of target
         if abs((closest_time - target_time).total_seconds()) > 1800:
             results[f"post_move_{h}h"] = None
             results[f"reversion_{h}h"] = None
@@ -1249,19 +240,14 @@ def compute_post_shock_outcomes(shock: dict, horizons_hours: list = [1, 6, 24]) 
     return results
 
 def run_all_post_shock_analysis():
-    """Compute outcomes for all detected shocks and save to MongoDB."""
     db = get_db()
     shocks = list(db["shock_events"].find({}))
     print(f"Computing post-shock outcomes for {len(shocks)} shocks...")
     
     for i, shock in enumerate(shocks):
         outcomes = compute_post_shock_outcomes(shock)
-        
         if outcomes:
-            db["shock_events"].update_one(
-                {"_id": shock["_id"]},
-                {"$set": outcomes}
-            )
+            db["shock_events"].update_one({"_id": shock["_id"]}, {"$set": outcomes})
             rev_6h = outcomes.get("reversion_6h")
             rev_str = f"{rev_6h:+.4f}" if rev_6h is not None else "N/A"
             print(f"  [{i+1}] {shock.get('question', '')[:50]}... reversion_6h={rev_str}")
@@ -1272,46 +258,42 @@ if __name__ == "__main__":
     run_all_post_shock_analysis()
 ```
 
-**Gemini Categorization (~30 min):**
+- ✅ Done when: all shock_events documents have `reversion_1h`, `reversion_6h`, `reversion_24h` fields
+
+**Hour 12–14 · Gemini Categorization + Aggregate Stats**
+
+Run `categorize.py` then `aggregate.py`:
+
 ```python
 # analysis/categorize.py
 import google.generativeai as genai
 from pymongo import MongoClient
-import time
+import time, os
 
-# Get API key from https://aistudio.google.com/apikey
-# Free tier: 10 RPM, 250 req/day — plenty for 100 markets
-GEMINI_API_KEY = "your_key_here"  # get from Google AI Studio
-MONGO_URI = "your_connection_string"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "your_key_here")
+MONGO_URI = os.environ["MONGODB_URI"]
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
-
 db = MongoClient(MONGO_URI)["shocktest"]
 
 def categorize_market(question: str) -> str:
-    """Use Gemini to classify a market into a category."""
     prompt = (
         "Classify this prediction market into exactly one category: "
         "politics, sports, crypto, entertainment, science, or other. "
         f"Market: '{question}'. "
         "Respond with only the category name in lowercase, nothing else."
     )
-    
     try:
         response = model.generate_content(prompt)
         category = response.text.strip().lower()
-        # Validate it's one of our expected categories
         valid = {"politics", "sports", "crypto", "entertainment", "science", "other"}
-        if category not in valid:
-            category = "other"
-        return category
+        return category if category in valid else "other"
     except Exception as e:
         print(f"  Gemini error: {e}")
         return "other"
 
 def categorize_all_markets():
-    """Categorize all markets that don't have a category yet."""
     markets = list(db["market_series"].find({"category": None}))
     print(f"Categorizing {len(markets)} markets with Gemini...")
     
@@ -1319,21 +301,15 @@ def categorize_all_markets():
         question = market["question"]
         category = categorize_market(question)
         
-        db["market_series"].update_one(
-            {"_id": market["_id"]},
-            {"$set": {"category": category}}
-        )
-        
-        # Also update any shock_events for this market
+        db["market_series"].update_one({"_id": market["_id"]}, {"$set": {"category": category}})
         db["shock_events"].update_many(
             {"market_id": market["market_id"]},
             {"$set": {"category": category}}
         )
         
         print(f"  [{i+1}/{len(markets)}] {category:15s} | {question[:60]}")
-        time.sleep(7)  # stay well under 10 RPM limit
+        time.sleep(7)  # stay under 10 RPM limit
     
-    # Print summary
     pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}]
     for doc in db["market_series"].aggregate(pipeline):
         print(f"  {doc['_id']}: {doc['count']} markets")
@@ -1342,24 +318,22 @@ if __name__ == "__main__":
     categorize_all_markets()
 ```
 
-**Aggregate Statistics:**
+Then run aggregate stats:
+
 ```python
 # analysis/aggregate.py
 import numpy as np
 from pymongo import MongoClient
+import os
 
-MONGO_URI = "your_connection_string"
-db = MongoClient(MONGO_URI)["shocktest"]
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
 
 def compute_aggregate_stats():
-    """Compute and store aggregate statistics across all shocks."""
     shocks = list(db["shock_events"].find({}))
-    
     if not shocks:
         print("No shocks found!")
         return
     
-    # Overall stats
     reversions_1h = [s["reversion_1h"] for s in shocks if s.get("reversion_1h") is not None]
     reversions_6h = [s["reversion_6h"] for s in shocks if s.get("reversion_6h") is not None]
     reversions_24h = [s["reversion_24h"] for s in shocks if s.get("reversion_24h") is not None]
@@ -1369,28 +343,23 @@ def compute_aggregate_stats():
         "total_shocks": len(shocks),
         "total_markets": len(set(s["market_id"] for s in shocks)),
         
-        # 1h horizon
         "reversion_rate_1h": round(np.mean([r > 0 for r in reversions_1h]), 4) if reversions_1h else None,
         "mean_reversion_1h": round(float(np.mean(reversions_1h)), 4) if reversions_1h else None,
         "std_reversion_1h": round(float(np.std(reversions_1h)), 4) if reversions_1h else None,
         "sample_size_1h": len(reversions_1h),
         
-        # 6h horizon (headline metric)
         "reversion_rate_6h": round(np.mean([r > 0 for r in reversions_6h]), 4) if reversions_6h else None,
         "mean_reversion_6h": round(float(np.mean(reversions_6h)), 4) if reversions_6h else None,
         "std_reversion_6h": round(float(np.std(reversions_6h)), 4) if reversions_6h else None,
         "sample_size_6h": len(reversions_6h),
         
-        # 24h horizon
         "reversion_rate_24h": round(np.mean([r > 0 for r in reversions_24h]), 4) if reversions_24h else None,
         "mean_reversion_24h": round(float(np.mean(reversions_24h)), 4) if reversions_24h else None,
         "sample_size_24h": len(reversions_24h),
         
-        # By category breakdown
         "by_category": {}
     }
     
-    # Category breakdown
     categories = set(s.get("category") for s in shocks if s.get("category"))
     for cat in categories:
         cat_shocks = [s for s in shocks if s.get("category") == cat]
@@ -1403,26 +372,21 @@ def compute_aggregate_stats():
             "sample_size_6h": len(cat_rev_6h),
         }
     
-    # Store in MongoDB (upsert)
-    db["shock_results"].update_one(
-        {"_id": "aggregate_stats"},
-        {"$set": stats},
-        upsert=True
-    )
+    db["shock_results"].update_one({"_id": "aggregate_stats"}, {"$set": stats}, upsert=True)
     
-    # Print headline results
     print(f"\n{'='*60}")
     print(f"SHOCKTEST RESULTS")
     print(f"{'='*60}")
-    print(f"Total shocks detected: {stats['total_shocks']}")
-    print(f"Across {stats['total_markets']} markets")
-    print(f"\n6-Hour Reversion Rate: {stats['reversion_rate_6h']:.1%}" if stats['reversion_rate_6h'] else "")
-    print(f"Mean 6h Reversion: {stats['mean_reversion_6h']:.2%}" if stats['mean_reversion_6h'] else "")
+    print(f"Total shocks: {stats['total_shocks']} across {stats['total_markets']} markets")
+    if stats['reversion_rate_6h']:
+        print(f"6-Hour Reversion Rate: {stats['reversion_rate_6h']:.1%}")
+        print(f"Mean 6h Reversion: {stats['mean_reversion_6h']:.2%}")
     print(f"Sample size: {stats['sample_size_6h']}")
     print(f"\nBy category:")
     for cat, data in stats["by_category"].items():
         rate = data.get("reversion_rate_6h")
-        print(f"  {cat}: {data['count']} shocks, 6h reversion rate = {rate:.1%}" if rate else f"  {cat}: {data['count']} shocks")
+        if rate:
+            print(f"  {cat}: {data['count']} shocks, 6h reversion = {rate:.1%}")
     
     return stats
 
@@ -1430,316 +394,1475 @@ if __name__ == "__main__":
     compute_aggregate_stats()
 ```
 
-- 🔗 Once aggregate stats are in MongoDB `shock_results` collection, ping Person 3 — the `/api/stats` route will now return real data
-- ✅ Done when: `shock_results` collection has one document with `_id: "aggregate_stats"` containing real numbers. Shock events all have `reversion_Xh` fields and `category` fields populated.
+- 🔗 Ping Person 1 to run `compute_distribution.py` after this completes (or run it yourself)
+- 🔗 Ping Person 3: `shock_results` now has aggregate stats — `/api/stats` returns real data
+- ✅ Done when: `shock_results` has `aggregate_stats` doc with real numbers, all shocks have categories
 
----
+**Hour 14–16 · Write Findings + Validate**
 
-### Person 3 (Frontend)
-
-**Goal:** Build the aggregate histogram and stats cards. Set up layout/navigation. Start connecting to real API routes as data becomes available.
-
-**Hour 10–12 · Histogram + Stats Cards**
-- Build the histogram component showing distribution of post-shock moves
-- Build stats cards showing headline numbers
-- Wire both to dummy data initially
-
-**Hour 12–14 · Layout and Navigation**
-```
-Main page (/) should show:
-├── Header: "ShockTest — Do Prediction Markets Overreact?"
-├── Subtitle: "Analyzing mean reversion in Polymarket probability shocks"
-├── Stats Cards row (4 cards)
-├── Findings paragraph (1-2 sentences with real numbers, filled in later)
-├── Shocks Table (sortable, filterable)
-├── Aggregate Histogram
-└── Footer: "Powered by Polymarket · Data stored in MongoDB Atlas · Categories by Google Gemini"
-
-Detail page (/shock/[id]) should show:
-├── Back link to main page
-├── Market question as title
-├── Shock details (delta, time window, category)
-├── Full price chart with shock highlight
-└── Post-shock outcomes table (1h, 6h, 24h)
-```
-
-**Hour 14–16 · Start Wiring Real Data**
-- Check if Person 2's data is in MongoDB by hitting your API routes:
-  - `http://localhost:3000/api/shocks` — should return shock events
-  - `http://localhost:3000/api/stats` — should return aggregate stats
-- If real data is available, start replacing dummy data imports with `fetch('/api/...')` calls
-- If not yet available, keep using dummy data — you'll swap in Hours 16–20
-
-- ✅ Done when: full page layout works with either dummy or real data, navigation between main page and detail pages works
-
----
-
-## HOUR 16–20 · MVP Dashboard (Integration)
-
-### Person 1 (Data Pipeline)
-
-**Goal:** MVP is complete. Support bug fixes and help Person 3 with data format issues.
-
-- Monitor MongoDB — make sure all data is consistent
-- If Person 3 reports data format issues with the API routes, fix them
-- Start writing `README.md`:
-```markdown
-# ShockTest — Do Prediction Markets Overreact?
-
-## Hypothesis
-[paste from plan]
-
-## Methodology
-[paste from plan]
-
-## Results
-[fill in with actual numbers from aggregate stats]
-
-## Tech Stack
-- **Data**: Polymarket Gamma API (2-min price history) + Manifold Markets
-- **Storage**: MongoDB Atlas (free M0 cluster)
-- **Analysis**: Python (pandas, numpy)
-- **Categorization**: Google Gemini 2.5 Flash
-- **Frontend**: Next.js + Recharts + Tailwind CSS
-- **Deployment**: Vercel + GoDaddy custom domain
-
-## Team
-[names]
-
-## Built at YHack Spring 2026
-```
-
----
-
-### Person 2 (Analysis)
-
-**Goal:** Validate results. Write the findings text. Help Person 3 with data interpretation.
-
-**Validate Results Manually:**
+Validate the results:
 ```python
-# Check: do the numbers make sense?
-# - Is reversion rate between 40-70%? (too high or too low might indicate a bug)
-# - Is mean reversion magnitude reasonable (1-5 percentage points)?
-# - Do category breakdowns have enough samples per category (≥5)?
-# - Are there any NaN or null values that shouldn't be there?
-
-# Write the findings paragraph that Person 3 will display on the dashboard:
-FINDINGS = """
-In our analysis of {total_shocks} probability shocks across {total_markets} 
-Polymarket and Manifold markets, we found that {reversion_rate_6h:.0%} of shocks 
-showed mean reversion within 6 hours, with an average reversion magnitude of 
-{mean_reversion_6h:.1%} percentage points. Political markets reverted at a rate 
-of {politics_rate:.0%}, compared to {crypto_rate:.0%} for crypto markets — 
-suggesting that political shocks may be more driven by overreaction to headlines, 
-while crypto market moves are more likely to reflect genuine information.
-"""
-# Fill in actual numbers and store in MongoDB or share with Person 3
+# Quick validation checklist:
+# 1. Is reversion_rate_6h between 40-70%? (Outside this range → likely a bug)
+# 2. Is mean_reversion_6h between 0.005 and 0.10? (Reasonable range)
+# 3. Does each category have ≥5 shocks? (If not, consider merging small categories into "other")
+# 4. Are there any NaN/null values where there shouldn't be?
+# 5. Spot-check: pick 3 shocks, manually verify their reversion values against the price series
 ```
 
-- 🔗 Share the findings text with Person 3 to display on the dashboard
-- ✅ Done when: results are validated, findings text is written, and Person 3 has it
+Write the findings paragraph (share with Person 3):
+```
+FINDINGS_TEMPLATE = """
+Across {total_shocks} probability shocks detected in {total_markets} Polymarket and 
+Manifold markets, {reversion_rate_6h:.0%} showed mean reversion within 6 hours — 
+with an average reversion of {mean_reversion_6h:.1%} percentage points. A simulated 
+fade-the-shock strategy produced a {backtest_win_rate:.0%} win rate with an expected 
+return of {backtest_avg_pnl:.2%} per dollar risked. {category_insight}
+"""
+
+# Fill in category_insight based on actual numbers, e.g.:
+# "Political markets reverted at 72% vs. 60% for crypto — suggesting political shocks
+#  are more often overreactions to headlines, while crypto moves more likely reflect
+#  genuine information."
+```
+
+- 🔗 Share findings text with Person 3 via group chat
+- ✅ Done when: findings paragraph written with real numbers, results manually validated
 
 ---
 
 ### Person 3 (Frontend)
 
-**Goal:** Wire all real data into the dashboard. Everything should show real numbers, not dummy data.
+**Hour 10–12 · Trade Simulator Component**
 
-**Hour 16–18 · Replace Dummy Data with API Calls**
-- Every component that uses `DUMMY_SHOCKS`, `DUMMY_STATS`, etc. should now fetch from your API routes
-- Pattern for each component:
+This is the most important new component. It goes on the per-shock detail page.
+
 ```typescript
-// In any page or component:
-const [data, setData] = useState(null);
-const [loading, setLoading] = useState(true);
+// components/TradeSimulator.tsx
+'use client';
 
-useEffect(() => {
-  fetch('/api/shocks')
-    .then(res => res.json())
-    .then(data => { setData(data); setLoading(false); })
-    .catch(err => { console.error(err); setLoading(false); });
-}, []);
-```
+import { useState, useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts';
 
-**Hour 18–20 · Polish and Deploy**
-- Add the findings paragraph from Person 2 to the top of the dashboard
-- Add "Powered by Polymarket" logo/text in footer
-- Add data source badges (Polymarket, MongoDB, Gemini)
-- Deploy to Vercel:
-```bash
-vercel --prod
-```
-- Point GoDaddy domain to Vercel:
-  - In Vercel: Settings → Domains → add `shocktest.xyz`
-  - In GoDaddy: DNS → add CNAME record pointing to `cname.vercel-dns.com`
-  - Or use Vercel's nameservers (Vercel will show instructions)
+interface BacktestStats {
+  win_rate_6h: number;
+  avg_pnl_per_dollar_6h: number;
+  max_drawdown_6h: number;
+  by_category: Record<string, {
+    win_rate_6h: number;
+    avg_pnl_6h: number;
+    sample_size: number;
+  }>;
+}
 
-- ✅ Done when: `shocktest.xyz` loads the dashboard with real data from MongoDB
+interface DistributionData {
+  bin_edges: number[];
+  bin_counts: number[];
+  percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number };
+  mean: number;
+  std: number;
+  min: number;
+  max: number;
+}
 
----
+interface TradeSimulatorProps {
+  shockDelta: number;           // the shock's delta
+  shockCategory: string | null; // category of this shock's market
+  backtest: BacktestStats;      // from /api/backtest
+  distribution: DistributionData; // from /api/backtest
+}
 
-## HOUR 20–24 · Polish + Stretch + Submissions
-
-### Person 1 (Data Pipeline)
-
-**Stretch: Fade Strategy Backtest**
-```python
-# analysis/backtest.py
-"""
-Fade strategy: when a shock is detected, simulate taking the opposite position.
-For each shock:
-  - Entry: at p_after (the shock price)
-  - Exit: at p(t2 + 6h) (6 hours later)
-  - P&L: reversion_6h (already computed)
-
-Report:
-  - Win rate (% of trades with positive reversion)
-  - Average P&L per trade
-  - Total simulated P&L
-  - Sharpe-like ratio
+export default function TradeSimulator({ shockDelta, shockCategory, backtest, distribution }: TradeSimulatorProps) {
+  const [positionSize, setPositionSize] = useState(100);
+  const [horizon, setHorizon] = useState<'1h' | '6h' | '24h'>('6h');
   
-IMPORTANT CAVEATS to include:
-  - This is in-sample only (no out-of-sample validation)
-  - Ignores transaction costs / slippage / liquidity
-  - Ignores the cost of monitoring markets 24/7
-  - Small sample size — not statistically robust for trading
-"""
-```
-
----
-
-### Person 2 (Analysis)
-
-**Stretch: Category Breakdown Analysis**
-- Build a table showing reversion rate by category
-- If sample sizes allow, compute statistical significance (chi-squared test or simple confidence intervals)
-- Write 2-3 sentences interpreting the category differences
-
-**Write Devpost Description:**
-Draft the project description for Devpost submission. Include:
-- What it does (1 paragraph)
-- How we built it (tech stack, 1 paragraph)
-- What we found (results with numbers, 1 paragraph)
-- Challenges we ran into
-- What we learned
-- Built with: Polymarket API, MongoDB Atlas, Google Gemini, Next.js, Vercel, Python
-
----
-
-### Person 3 (Frontend)
-
-**Hour 20–22 · Best UI/UX Polish (30 min focused session)**
-Use Claude Code to:
-- Apply a consistent color palette via Tailwind config (not default blue — pick something distinctive)
-- Ensure chart labels are readable (font size, contrast, axis labels)
-- Add smooth transitions/animations on page load (fade-in for cards, etc.)
-- Make layout responsive (test at mobile width)
-- Add visual hierarchy — the headline finding should be the most prominent element
-- Clean up any rough edges (loading states, error states, empty states)
-
-**Hour 22–23 · Film Most Viral Post Reel**
-- Screen-record a 30-second walkthrough:
-  - Show a dramatic shock in the table
-  - Click into it — show the price chart spiking and reverting
-  - Show the aggregate stats
-  - End with the URL: `shocktest.xyz`
-- Post to Instagram as reel, tag @yhack.yale
-
-**Hour 23–24 · Final Deploy + Submission**
-```bash
-# Final production deploy
-vercel --prod
-
-# Verify everything works
-curl https://shocktest.xyz
-curl https://shocktest.xyz/api/shocks
-curl https://shocktest.xyz/api/stats
-```
-
-**Submit on Devpost (yhack-2026.devpost.com):**
-- Project name: ShockTest
-- Tagline: "Do Prediction Markets Overreact?"
-- Select tracks: Prediction Markets, Most Creative Hack, Best UI/UX
-- Add demo URL: `shocktest.xyz`
-- Add GitHub repo link
-- Add demo video (can reuse the reel or record a longer walkthrough)
-- Paste the description Person 2 wrote
-
----
-
-## MongoDB Collections Reference
-
-All three team members should know this schema:
-
-```
-Database: shocktest
-
-Collection: market_series
-{
-  market_id: string,       // unique identifier
-  source: "polymarket" | "manifold",
-  question: string,        // market title
-  token_id: string,        // Polymarket token ID or Manifold contract ID
-  volume: float,           // total volume traded
-  series: [                // time series of prices
-    { t: float (unix seconds), p: float (0-1) },
-    ...
-  ],
-  category: string | null  // "politics", "sports", "crypto", "entertainment", "science", "other"
+  // Use category-specific stats if available, otherwise overall
+  const catStats = shockCategory ? backtest.by_category[shockCategory] : null;
+  const winRate = catStats?.win_rate_6h ?? backtest.win_rate_6h;
+  const avgPnl = catStats?.avg_pnl_6h ?? backtest.avg_pnl_per_dollar_6h;
+  
+  // Compute projected outcomes
+  const expectedPnl = positionSize * avgPnl;
+  const bestCase = positionSize * distribution.percentiles.p90;
+  const worstCase = positionSize * distribution.percentiles.p10;
+  const medianPnl = positionSize * distribution.percentiles.p50;
+  
+  // Build histogram data for chart
+  const histogramData = useMemo(() => {
+    return distribution.bin_counts.map((count, i) => {
+      const binCenter = (distribution.bin_edges[i] + distribution.bin_edges[i + 1]) / 2;
+      return {
+        bin: (binCenter * 100).toFixed(1),  // display as percentage
+        count,
+        pnl: (binCenter * positionSize).toFixed(2),
+        isPositive: binCenter > 0,
+      };
+    });
+  }, [distribution, positionSize]);
+  
+  return (
+    <div className="...">
+      {/* Title */}
+      <h3>Fade This Shock?</h3>
+      <p className="text-sm text-gray-500">
+        Based on historical data for {shockCategory || 'all'} market shocks
+      </p>
+      
+      {/* Position Size Input */}
+      <div>
+        <label>Position Size ($)</label>
+        <input
+          type="number"
+          value={positionSize}
+          onChange={(e) => setPositionSize(Number(e.target.value))}
+          min={1}
+          max={10000}
+        />
+      </div>
+      
+      {/* Horizon Selector */}
+      <div>
+        {['1h', '6h', '24h'].map(h => (
+          <button
+            key={h}
+            onClick={() => setHorizon(h as '1h' | '6h' | '24h')}
+            className={horizon === h ? 'active' : ''}
+          >
+            {h}
+          </button>
+        ))}
+      </div>
+      
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard label="Expected P&L" value={`$${expectedPnl.toFixed(2)}`} positive={expectedPnl > 0} />
+        <MetricCard label="Win Rate" value={`${(winRate * 100).toFixed(0)}%`} positive={winRate > 0.5} />
+        <MetricCard label="Best Case (p90)" value={`$${bestCase.toFixed(2)}`} positive={true} />
+        <MetricCard label="Worst Case (p10)" value={`$${worstCase.toFixed(2)}`} positive={worstCase > 0} />
+      </div>
+      
+      {/* Payoff Distribution Chart */}
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={histogramData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="bin" label={{ value: "Reversion (%)", position: "bottom" }} />
+          <YAxis label={{ value: "Count", angle: -90 }} />
+          <Tooltip
+            formatter={(value: number, name: string, props: any) => [
+              `${value} shocks (P&L: $${props.payload.pnl})`,
+              'Frequency'
+            ]}
+          />
+          <ReferenceLine x="0.0" stroke="#666" strokeDasharray="3 3" label="Break Even" />
+          <Bar dataKey="count">
+            {histogramData.map((entry, index) => (
+              <Cell key={index} fill={entry.isPositive ? '#22c55e' : '#ef4444'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      
+      {/* Caveats */}
+      <p className="text-xs text-gray-400 mt-4">
+        ⚠️ In-sample backtest only. Ignores transaction costs, slippage, and liquidity.
+        Small sample size — edge may not persist. Not investment advice.
+      </p>
+    </div>
+  );
 }
 
-Collection: shock_events
-{
-  market_id: string,
-  source: string,
-  question: string,
-  category: string | null,
-  t1: string (ISO),        // shock window start
-  t2: string (ISO),        // shock window end (shock peak)
-  p_before: float,
-  p_after: float,
-  delta: float,            // signed change (positive = up, negative = down)
-  abs_delta: float,        // absolute change
-  post_move_1h: float | null,
-  post_move_6h: float | null,
-  post_move_24h: float | null,
-  reversion_1h: float | null,
-  reversion_6h: float | null,
-  reversion_24h: float | null,
+function MetricCard({ label, value, positive }: { label: string; value: string; positive: boolean }) {
+  return (
+    <div className="...">
+      <div className="text-sm text-gray-500">{label}</div>
+      <div className={positive ? 'text-green-500' : 'text-red-500'}>{value}</div>
+    </div>
+  );
+}
+```
+
+**Hour 12–14 · Configurable Dashboard Controls**
+
+Add interactive controls to the main dashboard page that filter shocks and recompute displayed stats client-side:
+
+```typescript
+// components/DashboardControls.tsx
+'use client';
+
+import { useState } from 'react';
+
+interface ControlsProps {
+  categories: string[];
+  onFilterChange: (filters: {
+    theta: number;
+    horizon: '1h' | '6h' | '24h';
+    category: string;
+  }) => void;
 }
 
-Collection: shock_results
-{
-  _id: "aggregate_stats",
-  total_shocks: int,
-  total_markets: int,
-  reversion_rate_1h: float,
-  reversion_rate_6h: float,    // HEADLINE METRIC
-  reversion_rate_24h: float,
-  mean_reversion_6h: float,
-  std_reversion_6h: float,
-  sample_size_6h: int,
-  by_category: {
-    "politics": { count, reversion_rate_6h, mean_reversion_6h, sample_size_6h },
-    "crypto": { ... },
-    "sports": { ... },
-    ...
+export default function DashboardControls({ categories, onFilterChange }: ControlsProps) {
+  const [theta, setTheta] = useState(0.08);
+  const [horizon, setHorizon] = useState<'1h' | '6h' | '24h'>('6h');
+  const [category, setCategory] = useState('all');
+  
+  const handleThetaChange = (val: number) => {
+    setTheta(val);
+    onFilterChange({ theta: val, horizon, category });
+  };
+  
+  return (
+    <div className="flex flex-wrap gap-6 items-end">
+      {/* Theta Slider */}
+      <div>
+        <label className="text-sm font-medium">
+          Shock Threshold (θ): {(theta * 100).toFixed(0)}pp
+        </label>
+        <input
+          type="range"
+          min={0.03}
+          max={0.20}
+          step={0.01}
+          value={theta}
+          onChange={(e) => handleThetaChange(Number(e.target.value))}
+          className="w-48"
+        />
+      </div>
+      
+      {/* Horizon Picker */}
+      <div>
+        <label className="text-sm font-medium">Horizon</label>
+        <div className="flex gap-1">
+          {(['1h', '6h', '24h'] as const).map(h => (
+            <button
+              key={h}
+              onClick={() => { setHorizon(h); onFilterChange({ theta, horizon: h, category }); }}
+              className={`px-3 py-1 rounded ${horizon === h ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            >
+              {h}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Category Filter */}
+      <div>
+        <label className="text-sm font-medium">Category</label>
+        <select
+          value={category}
+          onChange={(e) => { setCategory(e.target.value); onFilterChange({ theta, horizon, category: e.target.value }); }}
+          className="px-3 py-1 rounded border"
+        >
+          <option value="all">All Categories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+```
+
+**Key UX behavior:** When the user changes θ, the shocks table filters to only show shocks with `abs_delta >= θ`. The stats cards and histogram recompute based on the filtered set. This is all client-side — fetch all shocks once, filter in React state.
+
+**Hour 14–16 · New API Route + Wire Real Data**
+
+Add the backtest API route:
+
+```typescript
+// app/api/backtest/route.ts
+import { NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
+
+export async function GET() {
+  try {
+    const client = await clientPromise;
+    const db = client.db('shocktest');
+    
+    const stats = await db.collection('shock_results').findOne({ _id: 'aggregate_stats' });
+    
+    if (!stats) {
+      return NextResponse.json({ error: 'No backtest data yet' }, { status: 404 });
+    }
+    
+    return NextResponse.json({
+      backtest: stats.backtest || null,
+      distribution_1h: stats.distribution_1h || null,
+      distribution_6h: stats.distribution_6h || null,
+      distribution_24h: stats.distribution_24h || null,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch backtest data' }, { status: 500 });
   }
 }
 ```
 
+Start replacing dummy data with real API calls across all components:
+- Check each API route: `curl http://localhost:3000/api/shocks`, `/api/stats`, `/api/backtest`
+- Swap `DUMMY_SHOCKS` → `fetch('/api/shocks')`
+- Swap `DUMMY_STATS` → `fetch('/api/stats')`
+- Wire trade simulator to `/api/backtest` data
+
+- ✅ Done when: Trade simulator renders on detail page with real or dummy data. Dashboard controls (θ slider, horizon picker, category filter) dynamically filter the shocks table. `/api/backtest` route returns data.
+
 ---
 
-## Handoff Checklist
+## HOUR 16–20 · INTEGRATION + MVP
+
+### Person 1 (Data Pipeline)
+
+**Goal:** MVP data is complete. Flag recent shocks. Write README. Support Person 3.
+
+**Hour 16–17 · Flag Recent/Live Shocks (HIGH PRIORITY — hits "real-world trading applicability")**
+
+This transforms the project from retrospective research into a forward-looking trading tool. Flag shocks from the last 48 hours where the market is still active — these are shocks a trader could still act on.
+
+```python
+# flag_recent_shocks.py
+"""
+Add 'is_recent' and 'hours_ago' fields to shock_events.
+Shocks from the last 48h with active markets are flagged as potentially actionable.
+"""
+from pymongo import MongoClient
+from datetime import datetime, timezone
+import os
+
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
+
+now = datetime.now(timezone.utc)
+shocks = list(db["shock_events"].find({}))
+
+recent_count = 0
+for shock in shocks:
+    t2 = datetime.fromisoformat(shock["t2"].replace("Z", "+00:00"))
+    hours_ago = (now - t2).total_seconds() / 3600
+    
+    is_recent = hours_ago <= 48
+    
+    db["shock_events"].update_one(
+        {"_id": shock["_id"]},
+        {"$set": {
+            "is_recent": is_recent,
+            "hours_ago": round(hours_ago, 1),
+        }}
+    )
+    
+    if is_recent:
+        recent_count += 1
+        print(f"  🔴 LIVE: {shock['question'][:50]}... ({hours_ago:.0f}h ago, Δ={shock['delta']:+.2f})")
+
+print(f"\n{recent_count} recent shocks flagged out of {len(shocks)} total")
+```
+
+- 🔗 Ping Person 3: shock_events now have `is_recent` and `hours_ago` fields — add a "Live Signals" badge/tab to the dashboard
+
+**Hour 17–20 · README + Support**
+
+- Verify all MongoDB collections are populated and consistent:
+```bash
+mise run db:status     # check collection counts
+mise run api:test      # check API routes return data
+```
+- Write `README.md`:
+```markdown
+# ShockTest — Do Prediction Markets Overreact?
+
+## What It Does
+ShockTest is a trading signal and decision tool for Polymarket. It detects large 
+probability shocks (overreactions), measures whether they systematically revert, 
+and gives traders an interactive simulator to size fade-the-shock positions based 
+on historical edge statistics.
+
+## The Finding
+[Fill with real numbers from aggregate_stats]
+
+## How to Use It
+1. Browse detected shocks in the table — filter by category, adjust the shock threshold
+2. Click a shock to see the full probability chart with the shock highlighted
+3. Use the Trade Simulator to input a position size and see expected P&L, win rate, 
+   and the historical distribution of outcomes
+4. Adjust the time horizon (1h/6h/24h) to see how the edge changes over time
+
+## Tech Stack
+- **Data**: Polymarket Gamma API + Manifold Markets API
+- **Storage**: MongoDB Atlas (free M0 cluster)
+- **Analysis**: Python (pandas, numpy) — shock detection + fade-strategy backtest
+- **Categorization**: Google Gemini 2.5 Flash
+- **Frontend**: Next.js 14 + Recharts + Tailwind CSS
+- **Deployment**: Vercel + GoDaddy custom domain
+
+## Methodology
+[Paste from Plan Section 3]
+
+## Caveats
+- In-sample backtest only — no out-of-sample validation
+- Ignores transaction costs, slippage, and liquidity
+- Small sample size — edge may not persist
+- Not investment advice
+
+## Team
+[Names]
+
+## Built at YHack Spring 2026
+```
+
+- Help Person 3 debug any data format issues
+
+---
+
+### Person 2 (Analysis)
+
+**Goal:** Validate all results. Finalize findings. Help Person 3 interpret data.
+
+**Hour 16–18 · Final Validation**
+```python
+# validation_checklist.py
+"""Run all validation checks before declaring MVP."""
+from pymongo import MongoClient
+import os
+
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
+
+# 1. Check collection counts
+for col in ["market_series", "shock_events", "shock_results"]:
+    count = db[col].count_documents({})
+    print(f"{col}: {count} docs")
+
+# 2. Check aggregate stats exist
+stats = db["shock_results"].find_one({"_id": "aggregate_stats"})
+assert stats is not None, "No aggregate stats!"
+print(f"\nReversion rate 6h: {stats.get('reversion_rate_6h')}")
+print(f"Mean reversion 6h: {stats.get('mean_reversion_6h')}")
+print(f"Sample size 6h: {stats.get('sample_size_6h')}")
+
+# 3. Check backtest data exists
+assert "backtest" in stats, "No backtest data!"
+print(f"\nBacktest win rate 6h: {stats['backtest'].get('win_rate_6h')}")
+print(f"Backtest avg P&L 6h: {stats['backtest'].get('avg_pnl_per_dollar_6h')}")
+
+# 4. Check distribution data exists
+assert "distribution_6h" in stats, "No distribution data!"
+print(f"\nDistribution bins: {len(stats['distribution_6h']['bin_counts'])}")
+
+# 5. Check categories are populated
+uncategorized = db["shock_events"].count_documents({"category": None})
+print(f"\nUncategorized shocks: {uncategorized}")
+
+# 6. Spot-check 3 random shocks
+import random
+shocks = list(db["shock_events"].find({}))
+for shock in random.sample(shocks, min(3, len(shocks))):
+    print(f"\n  {shock['question'][:50]}")
+    print(f"  delta={shock['delta']:+.4f}, rev_6h={shock.get('reversion_6h', 'N/A')}, cat={shock.get('category', 'N/A')}")
+
+print("\n✅ All checks passed!" if uncategorized == 0 else "\n⚠️ Some issues remain")
+```
+
+**Hour 18–20 · Finalize Findings + Devpost**
+
+Write the final findings paragraph with actual numbers (share with Person 3):
+```
+FINDINGS = """
+Across {total_shocks} probability shocks detected in {total_markets} Polymarket and
+Manifold markets, {reversion_rate_6h:.0%} showed mean reversion within 6 hours. 
+A simulated fade-the-shock strategy produced a {win_rate:.0%} win rate with 
+{avg_pnl:.2%} expected return per dollar risked. {category_insight}
+"""
+```
+
+Draft the Devpost description:
+```
+## What it does
+ShockTest is a trading toolkit for Polymarket built around a single insight: prediction 
+markets systematically overreact to sudden news. We detect these overreactions, quantify 
+the historical edge, and give traders interactive tools to act on it — payoff curves, 
+scenario analysis, a trade simulator, and a multi-market portfolio builder.
+
+## How we built it
+Python backend fetches 100+ markets from Polymarket's Gamma API and Manifold, stores 
+price histories in MongoDB Atlas, detects probability shocks via a configurable 
+threshold scanner, and computes post-shock outcomes at 1h/6h/24h horizons. Google 
+Gemini auto-categorizes markets. The Next.js dashboard deployed on Vercel features 
+interactive payoff curves for every shock, a scenario analysis panel with sliders for 
+probability/time/position size, a fade-strategy trade simulator backed by historical 
+backtest data, a P&L timeline chart, live signal detection for recent shocks, and a 
+Portfolio Builder where traders can combine multiple fade positions and see the 
+combined payoff graph with diversification benefits.
+
+## What we found
+[Insert headline result with real numbers]
+
+## Challenges
+- Normalizing time series across two different API formats (Polymarket uses 2-min candles, Manifold uses per-bet timestamps)
+- Deduplicating overlapping shock detections without losing real events
+- Building correct payoff math for binary market positions that accounts for direction, entry price, and share cost
+- Modeling time-to-resolution effects on mean reversion edge
+
+## What we learned
+- Prediction markets do show measurable mean reversion after large shocks
+- The effect varies significantly by market category
+- Combining multiple independent fade positions reduces portfolio variance proportional to 1/√N
+- Building quant-grade trading tools from scratch in 24 hours is very doable with the right pipeline
+
+## Built with
+Polymarket Gamma API, Manifold Markets API, MongoDB Atlas, Google Gemini 2.5 Flash, 
+Python, pandas, NumPy, Next.js, TypeScript, Recharts, Tailwind CSS, Vercel
+```
+
+- 🔗 Share findings text + Devpost draft with team
+
+---
+
+### Person 3 (Frontend)
+
+**Goal:** Full integration — everything shows real numbers. No dummy data anywhere.
+
+**Hour 16–18 · Wire All Real Data**
+
+Pattern for replacing dummy data in every component:
+```typescript
+// In page.tsx or any component that needs data:
+const [shocks, setShocks] = useState<Shock[]>([]);
+const [stats, setStats] = useState<AggregateStats | null>(null);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  Promise.all([
+    fetch('/api/shocks').then(r => r.json()),
+    fetch('/api/stats').then(r => r.json()),
+  ]).then(([shocksData, statsData]) => {
+    setShocks(shocksData);
+    setStats(statsData);
+    setLoading(false);
+  }).catch(err => {
+    console.error(err);
+    setLoading(false);
+  });
+}, []);
+```
+
+Wire the trade simulator on the detail page:
+```typescript
+// In /shock/[id]/page.tsx:
+// 1. Fetch the shock from /api/shocks (filter client-side by id)
+// 2. Fetch backtest data from /api/backtest
+// 3. Pass to TradeSimulator component
+
+const [backtestData, setBacktestData] = useState(null);
+
+useEffect(() => {
+  fetch('/api/backtest')
+    .then(r => r.json())
+    .then(data => setBacktestData(data));
+}, []);
+
+// In JSX:
+{backtestData && (
+  <TradeSimulator
+    shockDelta={shock.delta}
+    shockCategory={shock.category}
+    backtest={backtestData.backtest}
+    distribution={backtestData.distribution_6h}
+  />
+)}
+```
+
+Integrate DashboardControls into the main page:
+```typescript
+// In page.tsx:
+// 1. Fetch all shocks once
+// 2. DashboardControls fires onFilterChange
+// 3. Filter shocks client-side: shocks.filter(s => s.abs_delta >= theta && (category === 'all' || s.category === category))
+// 4. Recompute displayed stats from filtered set
+```
+
+**Hour 18–19 · Payoff Curve + Scenario Panel (CRITICAL — this is what Polymarket judges want most)**
+
+These two components go on the shock detail page, below the trade simulator. They directly address the brief's call for "payoff curves" and "scenario analysis tools."
+
+**Payoff Curve Component:**
+
+Shows P&L across all possible probability outcomes for a fade position. This is the prediction market equivalent of an options payoff diagram.
+
+```typescript
+// components/PayoffCurve.tsx
+'use client';
+
+import { useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, ResponsiveContainer, Area, ComposedChart } from 'recharts';
+
+interface PayoffCurveProps {
+  entryPrice: number;       // p_after (the price you fade at)
+  positionSize: number;     // dollars
+  direction: 'buy_no' | 'buy_yes';  // fade = buy opposite of shock direction
+  currentPrice: number;     // current market probability
+  meanReversionTarget: number | null;  // historical avg reversion target price
+}
+
+export default function PayoffCurve({ entryPrice, positionSize, direction, currentPrice, meanReversionTarget }: PayoffCurveProps) {
+  const data = useMemo(() => {
+    // Generate P&L at every possible resolution probability from 0% to 100%
+    const points = [];
+    for (let prob = 0; prob <= 100; prob += 1) {
+      const p = prob / 100;
+      let pnl: number;
+      
+      if (direction === 'buy_no') {
+        // You bought NO at (1 - entryPrice)
+        // NO pays $1 if event doesn't happen (p → 0), $0 if it does (p → 1)
+        // Cost per share = 1 - entryPrice
+        // Shares = positionSize / (1 - entryPrice)
+        const costPerShare = 1 - entryPrice;
+        const shares = positionSize / costPerShare;
+        const valuePerShare = 1 - p; // NO share value at probability p
+        pnl = shares * valuePerShare - positionSize;
+      } else {
+        // You bought YES at entryPrice
+        const costPerShare = entryPrice;
+        const shares = positionSize / costPerShare;
+        const valuePerShare = p; // YES share value at probability p
+        pnl = shares * valuePerShare - positionSize;
+      }
+      
+      points.push({
+        probability: prob,
+        pnl: Number(pnl.toFixed(2)),
+        label: `${prob}%`,
+      });
+    }
+    return points;
+  }, [entryPrice, positionSize, direction]);
+
+  const breakEvenProb = direction === 'buy_no' 
+    ? Math.round(entryPrice * 100) 
+    : Math.round(entryPrice * 100);
+
+  return (
+    <div>
+      <h4 className="font-semibold mb-2">Payoff Curve — P&L by Resolution Outcome</h4>
+      <p className="text-xs text-gray-500 mb-2">
+        If you {direction === 'buy_no' ? 'buy NO' : 'buy YES'} at {(entryPrice * 100).toFixed(0)}% with ${positionSize}
+      </p>
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="probability" 
+            label={{ value: "Resolution Probability (%)", position: "bottom" }}
+            tickFormatter={(v) => `${v}%`}
+          />
+          <YAxis 
+            tickFormatter={(v) => `$${v}`}
+            label={{ value: "P&L ($)", angle: -90, position: "insideLeft" }}
+          />
+          <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'P&L']} />
+          
+          {/* Break-even line */}
+          <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+          
+          {/* Current market price */}
+          <ReferenceLine 
+            x={Math.round(currentPrice * 100)} 
+            stroke="#2563eb" 
+            strokeDasharray="5 5"
+            label={{ value: "Current", position: "top" }}
+          />
+          
+          {/* Mean reversion target */}
+          {meanReversionTarget && (
+            <ReferenceLine 
+              x={Math.round(meanReversionTarget * 100)} 
+              stroke="#22c55e" 
+              strokeDasharray="5 5"
+              label={{ value: "Reversion Target", position: "top" }}
+            />
+          )}
+          
+          {/* Profit zone shading */}
+          <Area type="monotone" dataKey="pnl" fill="#22c55e" fillOpacity={0.1} stroke="none" />
+          <Line type="monotone" dataKey="pnl" stroke="#2563eb" dot={false} strokeWidth={2} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+```
+
+Wire into the detail page:
+```typescript
+// On shock detail page, compute these from the shock data:
+const fadeDirection = shock.delta > 0 ? 'buy_no' : 'buy_yes';
+const meanReversionTarget = shock.delta > 0 
+  ? shock.p_after - (stats?.mean_reversion_6h ?? 0)
+  : shock.p_after + (stats?.mean_reversion_6h ?? 0);
+
+<PayoffCurve
+  entryPrice={shock.p_after}
+  positionSize={positionSize}
+  direction={fadeDirection}
+  currentPrice={currentMarketPrice}  // latest price from series
+  meanReversionTarget={meanReversionTarget}
+/>
+```
+
+**Scenario Analysis Panel:**
+
+Three interactive sliders that let the user explore "what if" scenarios. This directly addresses the brief's "scenario analysis tools that show how a position performs if an event resolves sooner vs later."
+
+```typescript
+// components/ScenarioPanel.tsx
+'use client';
+
+import { useState, useMemo } from 'react';
+
+interface ScenarioPanelProps {
+  entryPrice: number;         // p_after
+  shockDelta: number;         // signed
+  positionSize: number;       // shared with TradeSimulator
+  category: string | null;
+  backtestStats: {
+    win_rate_6h: number;
+    avg_pnl_6h: number;
+  } | null;
+}
+
+export default function ScenarioPanel({ entryPrice, shockDelta, positionSize, category, backtestStats }: ScenarioPanelProps) {
+  const [targetProb, setTargetProb] = useState(Math.round(entryPrice * 100));
+  const [daysToResolution, setDaysToResolution] = useState(30);
+  const [scenarioSize, setScenarioSize] = useState(positionSize);
+  
+  const fadeDirection = shockDelta > 0 ? 'buy_no' : 'buy_yes';
+  
+  const results = useMemo(() => {
+    const p = targetProb / 100;
+    
+    // P&L if market moves to target probability
+    let pnlAtTarget: number;
+    if (fadeDirection === 'buy_no') {
+      const costPerShare = 1 - entryPrice;
+      const shares = scenarioSize / costPerShare;
+      pnlAtTarget = shares * (1 - p) - scenarioSize;
+    } else {
+      const costPerShare = entryPrice;
+      const shares = scenarioSize / costPerShare;
+      pnlAtTarget = shares * p - scenarioSize;
+    }
+    
+    // Time decay model: as resolution approaches, probability converges
+    // toward 0 or 1. A fade position benefits from reversion but loses
+    // value if the shock direction was correct and resolution is soon.
+    // Simple model: edge decays linearly as days_to_resolution shrinks
+    // (less time for mean reversion to play out)
+    const timeDecayFactor = Math.min(daysToResolution / 30, 1); // full edge at 30+ days
+    const adjustedWinRate = backtestStats 
+      ? 0.5 + (backtestStats.win_rate_6h - 0.5) * timeDecayFactor
+      : 0.5;
+    const adjustedEV = backtestStats
+      ? backtestStats.avg_pnl_6h * scenarioSize * timeDecayFactor
+      : 0;
+    
+    // Max profit (full reversion to pre-shock level)
+    const maxPnl = fadeDirection === 'buy_no'
+      ? scenarioSize / (1 - entryPrice) * (1 - (entryPrice - Math.abs(shockDelta))) - scenarioSize
+      : scenarioSize / entryPrice * (entryPrice + Math.abs(shockDelta)) - scenarioSize;
+    
+    // Max loss (shock continues to 0 or 1)
+    const maxLoss = -scenarioSize;
+    
+    return { pnlAtTarget, adjustedWinRate, adjustedEV, maxPnl, maxLoss, timeDecayFactor };
+  }, [targetProb, daysToResolution, scenarioSize, entryPrice, shockDelta, fadeDirection, backtestStats]);
+
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <h4 className="font-semibold mb-3">Scenario Analysis — What If?</h4>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {/* Slider 1: Target probability */}
+        <div>
+          <label className="text-sm font-medium">
+            Probability moves to: <strong>{targetProb}%</strong>
+          </label>
+          <input type="range" min={0} max={100} value={targetProb}
+            onChange={(e) => setTargetProb(Number(e.target.value))}
+            className="w-full" />
+        </div>
+        
+        {/* Slider 2: Days to resolution */}
+        <div>
+          <label className="text-sm font-medium">
+            Resolution in: <strong>{daysToResolution} days</strong>
+          </label>
+          <input type="range" min={1} max={180} value={daysToResolution}
+            onChange={(e) => setDaysToResolution(Number(e.target.value))}
+            className="w-full" />
+          <p className="text-xs text-gray-400">
+            Edge factor: {(results.timeDecayFactor * 100).toFixed(0)}% 
+            {daysToResolution < 7 && " ⚠️ Short horizon — less time for reversion"}
+          </p>
+        </div>
+        
+        {/* Slider 3: Position size */}
+        <div>
+          <label className="text-sm font-medium">
+            Position: <strong>${scenarioSize}</strong>
+          </label>
+          <input type="range" min={10} max={5000} step={10} value={scenarioSize}
+            onChange={(e) => setScenarioSize(Number(e.target.value))}
+            className="w-full" />
+        </div>
+      </div>
+      
+      {/* Scenario Outputs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded p-3 text-center">
+          <div className="text-xs text-gray-500">P&L at {targetProb}%</div>
+          <div className={`text-lg font-bold ${results.pnlAtTarget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            ${results.pnlAtTarget.toFixed(2)}
+          </div>
+        </div>
+        <div className="bg-white rounded p-3 text-center">
+          <div className="text-xs text-gray-500">Adj. Win Rate</div>
+          <div className="text-lg font-bold">
+            {(results.adjustedWinRate * 100).toFixed(0)}%
+          </div>
+        </div>
+        <div className="bg-white rounded p-3 text-center">
+          <div className="text-xs text-gray-500">Adj. Expected Value</div>
+          <div className={`text-lg font-bold ${results.adjustedEV >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            ${results.adjustedEV.toFixed(2)}
+          </div>
+        </div>
+        <div className="bg-white rounded p-3 text-center">
+          <div className="text-xs text-gray-500">Max Loss</div>
+          <div className="text-lg font-bold text-red-600">
+            ${results.maxLoss.toFixed(2)}
+          </div>
+        </div>
+      </div>
+      
+      <p className="text-xs text-gray-400 mt-3">
+        ⚠️ Time decay model is a linear approximation. Shorter resolution windows reduce
+        the probability of mean reversion playing out. Not investment advice.
+      </p>
+    </div>
+  );
+}
+```
+
+Wire into the shock detail page alongside PayoffCurve and TradeSimulator. All three share the same `positionSize` state.
+
+**Detail page layout (top to bottom):**
+1. Market title + shock metadata
+2. PriceChart (probability over time with shock highlight)
+3. **PayoffCurve** (P&L at every possible outcome)
+4. **ScenarioPanel** (3 sliders: target prob, days to resolution, position size)
+5. TradeSimulator (historical edge stats + distribution chart)
+6. PnlTimeline (P&L evolution over 24h)
+7. Caveats footer
+
+**Hour 19–20 · P&L Timeline Chart + Live Signals Badge + FindingsBlock + Deploy**
+
+**P&L Timeline Chart (HIGH PRIORITY — hits "see what happens across time")**
+
+On the shock detail page, below the probability chart, add a line chart showing how P&L evolves over time if you faded the shock. This uses the existing price series data — no new API needed.
+
+```typescript
+// components/PnlTimeline.tsx
+'use client';
+
+import { useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
+
+interface PnlTimelineProps {
+  series: { t: number; p: number }[];  // full price series from /api/markets?id=X
+  shockT2: string;                      // ISO timestamp of shock peak
+  shockDelta: number;                   // signed delta of the shock
+  positionSize: number;                 // from trade simulator input
+}
+
+export default function PnlTimeline({ series, shockT2, shockDelta, positionSize }: PnlTimelineProps) {
+  const data = useMemo(() => {
+    const t2 = new Date(shockT2).getTime() / 1000;
+    const shockDirection = Math.sign(shockDelta);
+    const pAtShock = series.find(pt => Math.abs(pt.t - t2) < 120)?.p;
+    if (!pAtShock) return [];
+    
+    // Show 24 hours after the shock
+    return series
+      .filter(pt => pt.t >= t2 && pt.t <= t2 + 86400)
+      .map(pt => {
+        const hoursAfter = (pt.t - t2) / 3600;
+        const postMove = pt.p - pAtShock;
+        const reversion = -shockDirection * postMove;
+        const pnl = positionSize * reversion;
+        return {
+          hours: Number(hoursAfter.toFixed(2)),
+          label: `${hoursAfter.toFixed(1)}h`,
+          pnl: Number(pnl.toFixed(2)),
+        };
+      });
+  }, [series, shockT2, shockDelta, positionSize]);
+
+  return (
+    <div>
+      <h4 className="font-semibold mb-2">P&L Over Time (if you faded at shock peak)</h4>
+      <ResponsiveContainer width="100%" height={250}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="label" label={{ value: "Hours After Shock", position: "bottom" }} />
+          <YAxis tickFormatter={(v) => `$${v}`} />
+          <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'P&L']} />
+          <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+          <Line type="monotone" dataKey="pnl" stroke="#2563eb" dot={false} strokeWidth={2} />
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-xs text-gray-400 mt-1">Shows how your ${positionSize} fade position would have performed over 24 hours</p>
+    </div>
+  );
+}
+```
+
+Wire this into the shock detail page — it reads from the same market series data that PriceChart already uses, and takes `positionSize` from the TradeSimulator state. Lift `positionSize` state up to the detail page so both components share it.
+
+**Live Signals Badge (HIGH PRIORITY — hits "real-world trading applicability")**
+
+In the ShocksTable, add visual indicators for recent/actionable shocks:
+
+```typescript
+// In ShocksTable.tsx, add to each row:
+{shock.is_recent && (
+  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 animate-pulse">
+    🔴 LIVE
+  </span>
+)}
+{!shock.is_recent && shock.hours_ago && (
+  <span className="text-xs text-gray-400">{Math.round(shock.hours_ago)}h ago</span>
+)}
+```
+
+Also add a "Live Signals" filter button to DashboardControls that filters to only `is_recent === true` shocks. These go at the top of the table.
+
+**FindingsBlock + Footer + Deploy**
+
+Add the FindingsBlock component with Person 2's findings text:
+```typescript
+// components/FindingsBlock.tsx
+interface FindingsProps {
+  stats: AggregateStats;
+}
+
+export default function FindingsBlock({ stats }: FindingsProps) {
+  if (!stats.reversion_rate_6h) return null;
+  
+  return (
+    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 my-6 rounded">
+      <p className="text-lg">
+        Across <strong>{stats.total_shocks}</strong> probability shocks in{' '}
+        <strong>{stats.total_markets}</strong> markets, we found that{' '}
+        <strong>{(stats.reversion_rate_6h * 100).toFixed(0)}%</strong> reverted
+        within 6 hours — with a simulated fade strategy producing a{' '}
+        <strong>{((stats.backtest?.win_rate_6h ?? 0) * 100).toFixed(0)}%</strong>{' '}
+        win rate.
+      </p>
+    </div>
+  );
+}
+```
+
+Add Footer with attribution:
+```
+"Powered by Polymarket · Data stored in MongoDB Atlas · Categories by Google Gemini"
+```
+
+Deploy:
+```bash
+cd dashboard
+vercel --prod
+```
+
+Point GoDaddy domain to Vercel (CNAME to `cname.vercel-dns.com`).
+
+- ✅ Done when: `shocktest.xyz` loads with real data, payoff curve + scenario panel + trade simulator work on detail pages, P&L timeline chart renders, 🔴 LIVE badges appear on recent shocks, controls filter the dashboard
+
+---
+
+## HOUR 20–24 · POLISH + STRETCH + SUBMISSION
+
+### Person 1
+
+- Polish README with final numbers
+- Stretch: add transaction cost assumptions to backtest (e.g., deduct 1-2% slippage per trade, report adjusted EV)
+- Help with Devpost submission
+
+### Person 2
+
+- Stretch: statistical significance — basic confidence intervals on reversion rate
+- **Stretch (HIGH IMPACT — hits "multi-market interactions" bonus): Cross-market shock correlation analysis**
+
+```python
+# analysis/correlation.py
+"""
+Do shocks cluster across categories? Compute co-occurrence matrix.
+For each pair of categories, count how often a shock in category A
+occurs within 24h of a shock in category B.
+Stores result in shock_results for the dashboard.
+"""
+import numpy as np
+from pymongo import MongoClient
+from datetime import datetime
+import os
+
+db = MongoClient(os.environ["MONGODB_URI"])["shocktest"]
+
+shocks = list(db["shock_events"].find({"category": {"$ne": None}}))
+categories = sorted(set(s["category"] for s in shocks))
+
+# Build co-occurrence matrix
+matrix = {cat: {cat2: 0 for cat2 in categories} for cat in categories}
+
+for i, s1 in enumerate(shocks):
+    t1 = datetime.fromisoformat(s1["t2"].replace("Z", "+00:00"))
+    for s2 in shocks[i+1:]:
+        t2 = datetime.fromisoformat(s2["t2"].replace("Z", "+00:00"))
+        if abs((t2 - t1).total_seconds()) <= 86400:  # within 24h
+            matrix[s1["category"]][s2["category"]] += 1
+            matrix[s2["category"]][s1["category"]] += 1
+
+# Store in MongoDB
+db["shock_results"].update_one(
+    {"_id": "aggregate_stats"},
+    {"$set": {
+        "correlation_matrix": {
+            "categories": categories,
+            "matrix": [[matrix[c1][c2] for c2 in categories] for c1 in categories],
+        }
+    }},
+    upsert=True
+)
+
+print("Shock co-occurrence matrix (shocks within 24h of each other):")
+print(f"{'':15s}", end="")
+for cat in categories:
+    print(f"{cat:12s}", end="")
+print()
+for c1 in categories:
+    print(f"{c1:15s}", end="")
+    for c2 in categories:
+        print(f"{matrix[c1][c2]:12d}", end="")
+    print()
+```
+
+Person 3 can display this as a simple heatmap or table on the dashboard under "Cross-Market Patterns" — even a plain HTML table with colored cells is fine.
+
+- Finalize Devpost description with final numbers
+
+### Person 3
+
+**Hour 20–21 · Multi-Shock Fade Portfolio Page (CORE — hits "combine multiple markets into a single payoff graph")**
+
+New page: `/portfolio`. The user selects 2–4 shocks to fade simultaneously and sees the combined portfolio payoff.
+
+```typescript
+// app/portfolio/page.tsx
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
+
+interface SelectedShock {
+  market_id: string;
+  question: string;
+  category: string | null;
+  delta: number;
+  p_after: number;
+  positionSize: number;  // user sets per-shock
+}
+
+export default function PortfolioPage() {
+  const [allShocks, setAllShocks] = useState<any[]>([]);
+  const [selected, setSelected] = useState<SelectedShock[]>([]);
+  const [backtest, setBacktest] = useState<any>(null);
+  
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/shocks').then(r => r.json()),
+      fetch('/api/backtest').then(r => r.json()),
+    ]).then(([shocks, bt]) => {
+      setAllShocks(shocks);
+      setBacktest(bt);
+    });
+  }, []);
+  
+  // Combined portfolio payoff curve
+  const portfolioPayoff = useMemo(() => {
+    if (selected.length === 0) return [];
+    
+    const points = [];
+    // For simplicity, show how portfolio P&L changes as "average reversion" varies
+    // x-axis: average reversion across all positions (-20% to +20%)
+    for (let revPct = -20; revPct <= 20; revPct += 0.5) {
+      const rev = revPct / 100;
+      let totalPnl = 0;
+      
+      for (const shock of selected) {
+        // Each position's P&L = positionSize × reversion
+        totalPnl += shock.positionSize * rev;
+      }
+      
+      points.push({
+        reversion: revPct,
+        pnl: Number(totalPnl.toFixed(2)),
+        label: `${revPct}%`,
+      });
+    }
+    return points;
+  }, [selected]);
+  
+  // Per-shock payoff curves (for the multi-line chart)
+  const combinedPayoffByOutcome = useMemo(() => {
+    if (selected.length === 0) return [];
+    
+    // For each possible "market move" from -20% to +20%, show individual + combined P&L
+    const points = [];
+    for (let movePct = -20; movePct <= 20; movePct += 1) {
+      const move = movePct / 100;
+      const point: any = { move: movePct };
+      let totalPnl = 0;
+      
+      for (let i = 0; i < selected.length; i++) {
+        const shock = selected[i];
+        const shockDir = Math.sign(shock.delta);
+        const reversion = -shockDir * move;
+        const pnl = shock.positionSize * reversion;
+        point[`shock_${i}`] = Number(pnl.toFixed(2));
+        totalPnl += pnl;
+      }
+      
+      point.portfolio = Number(totalPnl.toFixed(2));
+      points.push(point);
+    }
+    return points;
+  }, [selected]);
+  
+  // Portfolio stats
+  const portfolioStats = useMemo(() => {
+    if (selected.length === 0 || !backtest?.backtest) return null;
+    
+    const totalSize = selected.reduce((sum, s) => sum + s.positionSize, 0);
+    const bt = backtest.backtest;
+    
+    // If shocks are independent, portfolio win rate = 1 - product(1 - individual_win_rate)
+    // But for same-horizon fades, simpler: weighted average win rate
+    const avgWinRate = bt.win_rate_6h;
+    const avgPnl = bt.avg_pnl_per_dollar_6h;
+    
+    // Portfolio diversification: if N independent bets, variance scales by 1/N
+    const n = selected.length;
+    const expectedPnl = totalSize * avgPnl;
+    const stdReduction = Math.sqrt(1 / n);  // diversification benefit
+    
+    return {
+      totalSize,
+      numPositions: n,
+      expectedPnl: Number(expectedPnl.toFixed(2)),
+      avgWinRate,
+      diversificationBenefit: `${((1 - stdReduction) * 100).toFixed(0)}% variance reduction`,
+      maxLoss: -totalSize,
+    };
+  }, [selected, backtest]);
+
+  const addShock = (shock: any) => {
+    if (selected.length >= 4) return;
+    if (selected.find(s => s.market_id === shock.market_id)) return;
+    setSelected([...selected, {
+      market_id: shock.market_id,
+      question: shock.question,
+      category: shock.category,
+      delta: shock.delta,
+      p_after: shock.p_after,
+      positionSize: 100,  // default $100
+    }]);
+  };
+  
+  const removeShock = (marketId: string) => {
+    setSelected(selected.filter(s => s.market_id !== marketId));
+  };
+  
+  const updateSize = (marketId: string, size: number) => {
+    setSelected(selected.map(s => 
+      s.market_id === marketId ? { ...s, positionSize: size } : s
+    ));
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-2">Fade Portfolio Builder</h1>
+      <p className="text-gray-600 mb-6">
+        Select 2–4 shocks to fade simultaneously. See the combined payoff and diversification benefit.
+      </p>
+      
+      {/* Shock selector — pick from recent/large shocks */}
+      <div className="mb-6">
+        <h3 className="font-semibold mb-2">Available Shocks (click to add)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+          {allShocks.slice(0, 20).map(shock => (
+            <button
+              key={shock.market_id}
+              onClick={() => addShock(shock)}
+              disabled={selected.length >= 4 || !!selected.find(s => s.market_id === shock.market_id)}
+              className="text-left p-2 rounded border hover:bg-blue-50 disabled:opacity-50 text-sm"
+            >
+              <span className="font-medium">{shock.question?.substring(0, 50)}...</span>
+              <span className="ml-2 text-blue-600">Δ{(shock.delta * 100).toFixed(0)}pp</span>
+              {shock.is_recent && <span className="ml-1 text-red-600">🔴</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Selected positions with size inputs */}
+      {selected.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-semibold mb-2">Your Fade Positions</h3>
+          {selected.map((s, i) => (
+            <div key={s.market_id} className="flex items-center gap-3 mb-2 p-2 bg-white rounded border">
+              <span className="text-sm flex-1">{s.question?.substring(0, 40)}... (Δ{(s.delta * 100).toFixed(0)}pp)</span>
+              <label className="text-sm">$</label>
+              <input
+                type="number" value={s.positionSize} min={10} max={5000} step={10}
+                onChange={(e) => updateSize(s.market_id, Number(e.target.value))}
+                className="w-20 px-2 py-1 border rounded"
+              />
+              <button onClick={() => removeShock(s.market_id)} className="text-red-500 text-sm">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* Portfolio Stats */}
+      {portfolioStats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          <div className="bg-white rounded-lg p-3 text-center border">
+            <div className="text-xs text-gray-500">Positions</div>
+            <div className="text-lg font-bold">{portfolioStats.numPositions}</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center border">
+            <div className="text-xs text-gray-500">Total Deployed</div>
+            <div className="text-lg font-bold">${portfolioStats.totalSize}</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center border">
+            <div className="text-xs text-gray-500">Expected P&L</div>
+            <div className={`text-lg font-bold ${portfolioStats.expectedPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${portfolioStats.expectedPnl}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center border">
+            <div className="text-xs text-gray-500">Win Rate</div>
+            <div className="text-lg font-bold">{(portfolioStats.avgWinRate * 100).toFixed(0)}%</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center border">
+            <div className="text-xs text-gray-500">Diversification</div>
+            <div className="text-lg font-bold text-blue-600">{portfolioStats.diversificationBenefit}</div>
+          </div>
+        </div>
+      )}
+      
+      {/* Combined Payoff Chart */}
+      {combinedPayoffByOutcome.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-semibold mb-2">Combined Payoff Graph</h3>
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={combinedPayoffByOutcome}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="move" tickFormatter={(v) => `${v}%`}
+                label={{ value: "Market Move (%)", position: "bottom" }} />
+              <YAxis tickFormatter={(v) => `$${v}`} />
+              <Tooltip />
+              <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+              
+              {/* Individual position lines (thin, muted) */}
+              {selected.map((_, i) => (
+                <Line key={i} type="monotone" dataKey={`shock_${i}`}
+                  stroke="#94a3b8" strokeWidth={1} dot={false} strokeDasharray="3 3" />
+              ))}
+              
+              {/* Combined portfolio line (bold) */}
+              <Line type="monotone" dataKey="portfolio"
+                stroke="#2563eb" strokeWidth={3} dot={false} name="Portfolio" />
+              
+              <Legend />
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-gray-400">
+            Thin lines = individual positions. Bold blue = combined portfolio P&L.
+            Diversification reduces variance when shocks are uncorrelated.
+          </p>
+        </div>
+      )}
+      
+      <p className="text-xs text-gray-400 mt-4">
+        ⚠️ Assumes shock outcomes are independent across markets. In-sample estimates.
+        Ignores transaction costs, slippage, and liquidity. Not investment advice.
+      </p>
+    </div>
+  );
+}
+```
+
+Add a nav link to `/portfolio` from the main dashboard header and the shock detail page.
+
+**Hour 21–22 · UI Polish (30 min focused session)**
+
+Use Claude Code to:
+- Apply a consistent, distinctive color palette via Tailwind config (not default blue)
+- Ensure chart labels are readable (font size, contrast, axis labels with units)
+- Add smooth transitions on page load (fade-in for cards)
+- Make layout responsive (test at mobile width)
+- Visual hierarchy: the payoff curve, scenario panel, and trade simulator should be the most prominent elements on the detail page
+- Loading states and error states for all data-fetching components
+- Make all sliders feel snappy (no lag, immediate visual feedback)
+- Add a navigation bar: Dashboard | Portfolio Builder | About
+
+**Hour 22–23 · Film Reel + Demo Prep**
+
+Screen-record a 30-second walkthrough:
+1. Show the dashboard with 🔴 LIVE badges — drag the θ slider
+2. Click a dramatic shock → show price chart + payoff curve
+3. Drag the scenario sliders — P&L updates dynamically
+4. Switch to Portfolio Builder → select 3 shocks → show combined payoff graph
+5. End card: `shocktest.xyz`
+
+Post to Instagram as reel, tag @yhack.yale.
+
+Prepare demo flow for judges (**use a concrete user story — hits "clarity of explanation"**):
+
+> *"You're a Polymarket trader. You open ShockTest and see a 🔴 LIVE signal — BTC-above-100k just dropped 12pp in 45 minutes. You click in and see three things: First, the payoff curve — your P&L at every possible outcome. Second, the scenario panel — what if probability moves to 60%? What if the market resolves in a week vs. a month? You drag the sliders and see your P&L update instantly. Third, the trade simulator shows the historical edge: crypto shocks this size revert 65% of the time within 6 hours. You enter $200, expected P&L is $6.80. Then you go to the Portfolio Builder, add two more shocks from different categories, and see the combined payoff — diversification cuts your variance by 40%. Now you have a portfolio of three independent fade bets with known risk parameters."*
+
+Step-by-step:
+1. Open `shocktest.xyz`
+2. Point out the 🔴 LIVE badges — "these are actionable right now"
+3. Adjust θ slider — shocks appear/disappear ("you define what counts as overreaction")
+4. Click into a compelling shock → show payoff curve ("your P&L at every possible resolution")
+5. Drag scenario sliders — "what if probability moves to 70%? What if resolution is next week?"
+6. Show trade simulator — "historically, Z% of these shocks revert within 6 hours"
+7. Navigate to Portfolio Builder → select 3 shocks → show combined payoff graph
+8. State the headline: "We found a measurable, systematic edge in Polymarket overreactions"
+9. Close with caveats: "in-sample, ignores slippage — this is a decision tool, not a guarantee"
+
+**Hour 23–24 · Final Deploy + Submit**
+
+```bash
+vercel --prod
+
+# Verify
+curl https://shocktest.xyz
+curl https://shocktest.xyz/portfolio
+curl https://shocktest.xyz/api/shocks
+curl https://shocktest.xyz/api/stats
+curl https://shocktest.xyz/api/backtest
+```
+
+Submit on Devpost (`yhack-2026.devpost.com`):
+- Project name: **ShockTest**
+- Tagline: **"Detect overreactions. Visualize the edge. Size the trade."**
+- Tracks: Prediction Markets, Most Creative Hack, Best UI/UX
+- Demo URL: `shocktest.xyz`
+- GitHub repo link
+- Demo video (reel or longer walkthrough)
+- Description from Person 2
+
+---
+
+## Updated TypeScript Interfaces
+
+Add these to `dashboard/lib/types.ts`:
+
+```typescript
+// Existing interfaces stay the same. Add these new fields to the Shock interface:
+//   is_recent: boolean;       // true if shock is within last 48h
+//   hours_ago: number;        // hours since the shock occurred
+//   fade_pnl_1h: number | null;
+//   fade_pnl_6h: number | null;
+//   fade_pnl_24h: number | null;
+
+// New interfaces:
+
+export interface BacktestStats {
+  win_rate_1h: number | null;
+  win_rate_6h: number | null;
+  win_rate_24h: number | null;
+  avg_pnl_per_dollar_6h: number;
+  max_drawdown_6h: number;
+  total_trades: number;
+  by_category: Record<string, {
+    win_rate_6h: number;
+    avg_pnl_6h: number;
+    sample_size: number;
+  }>;
+}
+
+export interface DistributionData {
+  bin_edges: number[];
+  bin_counts: number[];
+  percentiles: {
+    p10: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p90: number;
+  };
+  mean: number;
+  std: number;
+  min: number;
+  max: number;
+}
+
+export interface BacktestResponse {
+  backtest: BacktestStats | null;
+  distribution_1h: DistributionData | null;
+  distribution_6h: DistributionData | null;
+  distribution_24h: DistributionData | null;
+}
+
+// Stretch: correlation matrix
+export interface CorrelationMatrix {
+  categories: string[];
+  matrix: number[][];  // co-occurrence counts
+}
+```
+
+---
+
+## Updated API Routes Summary
+
+| Route | Method | Purpose | Returns |
+|-------|--------|---------|---------|
+| `/api/shocks` | GET | All detected shocks, sorted by abs_delta desc | `Shock[]` |
+| `/api/markets` | GET | List all markets (no series) | `Market[]` |
+| `/api/markets?id=X` | GET | Single market with full price series | `Market` with `series` |
+| `/api/stats` | GET | Aggregate statistics | `AggregateStats` |
+| `/api/backtest` | GET | **NEW** — Backtest stats + distribution data | `BacktestResponse` |
+
+## Pages Summary
+
+| Page | Route | Key Components |
+|------|-------|---------------|
+| Main Dashboard | `/` | Header → DashboardControls (θ slider, horizon, category) → StatsCards → FindingsBlock → ShocksTable (with 🔴 LIVE badges) → Histogram → CategoryBreakdown → Footer |
+| Shock Detail | `/shock/[id]` | PriceChart → **PayoffCurve** → **ScenarioPanel** (3 sliders) → TradeSimulator → PnlTimeline → Caveats |
+| **Portfolio Builder** | **`/portfolio`** | **Shock selector → Position size inputs → Portfolio stats (expected P&L, diversification) → Combined payoff graph → Caveats** |
+
+---
+
+## Updated Handoff Checklist
 
 | Time | From | To | What |
 |------|------|----|------|
-| Min 20 | Person 1 | All | MongoDB connection string |
-| Min 90 | Person 1 | Person 2, 3 | `data_shape.py` — actual API field names |
-| Hour 2 | Person 1 | All | Decision gate: Polymarket primary or Manifold primary |
-| Hour 4 | Person 1 | Person 2 | ≥20 markets in MongoDB — Person 2 can start shock detection |
-| Hour 6 | Person 2 | Person 3 | shock_events in MongoDB — `/api/shocks` returns real data |
-| Hour 14 | Person 2 | Person 3 | aggregate stats in MongoDB — `/api/stats` returns real data |
-| Hour 14 | Person 2 | Person 3 | categories populated — shocks have category field |
-| Hour 18 | Person 2 | Person 3 | Findings paragraph text for dashboard display |
+| ~~Min 20~~ | ~~Person 1~~ | ~~All~~ | ~~MongoDB connection string~~ ✅ |
+| ~~Min 90~~ | ~~Person 1~~ | ~~Person 2, 3~~ | ~~data_shape.py~~ ✅ |
+| ~~Hour 2~~ | ~~Person 1~~ | ~~All~~ | ~~Polymarket primary decision~~ ✅ |
+| ~~Hour 4~~ | ~~Person 1~~ | ~~Person 2~~ | ~~≥20 markets in MongoDB~~ ✅ |
+| ~~Hour 6~~ | ~~Person 2~~ | ~~Person 3~~ | ~~shock_events populated~~ ✅ |
+| Hour 14 | Person 2 | Person 3 | Aggregate stats + categories in MongoDB → `/api/stats` returns real data |
+| **Hour 14** | **Person 1** | **Person 3** | **Backtest + distribution data in MongoDB → `/api/backtest` returns real data** |
+| **Hour 17** | **Person 1** | **Person 3** | **`is_recent` + `hours_ago` fields on shock_events → add 🔴 LIVE badges to table** |
+| Hour 18 | Person 2 | Person 3 | Findings paragraph text for dashboard |
 | Hour 22 | Person 2 | Person 3 | Devpost project description draft |
+| Hour 22 | Person 2 | Person 3 | (stretch) Correlation matrix in shock_results → display as table/heatmap |
