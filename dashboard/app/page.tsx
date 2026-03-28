@@ -26,7 +26,7 @@ export default function Home() {
     category: "all",
   });
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     Promise.all([
       fetch("/api/shocks")
         .then((res) => {
@@ -59,6 +59,13 @@ export default function Home() {
       setLoading(false);
     });
   }, []);
+
+  // Fetch on mount + every 2 minutes
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 120000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   // Client-side filtering based on dashboard controls
   const filteredShocks = useMemo(() => {

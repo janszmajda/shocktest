@@ -127,6 +127,23 @@ export default function PortfolioPage() {
     );
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  // Sort by most recent, filter by search
+  const filteredShocks = useMemo(() => {
+    const sorted = [...allShocks].sort(
+      (a, b) => new Date(b.t2).getTime() - new Date(a.t2).getTime(),
+    );
+    const searched = searchQuery
+      ? sorted.filter((s) =>
+          s.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.category?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false),
+        )
+      : sorted;
+    return showAll ? searched : searched.slice(0, 20);
+  }, [allShocks, searchQuery, showAll]);
+
   const COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#8b5cf6"];
 
   return (
@@ -149,17 +166,37 @@ export default function PortfolioPage() {
           <>
             {/* Shock selector */}
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-700">
-                Available Shocks (click to add)
-              </h3>
-              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2">
-                {allShocks.slice(0, 20).map((shock) => {
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">
+                  Available Shocks — sorted by most recent (click to add)
+                </h3>
+                <span className="text-xs text-gray-400">
+                  {filteredShocks.length} of {allShocks.length} shocks
+                </span>
+              </div>
+              <div className="mb-2 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Search markets or categories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                />
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  {showAll ? "Show top 20" : "Show all"}
+                </button>
+              </div>
+              <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2">
+                {filteredShocks.map((shock) => {
                   const isSelected = !!selected.find(
                     (s) => s.market_id === shock.market_id,
                   );
                   return (
                     <button
-                      key={shock.market_id}
+                      key={shock._id}
                       onClick={() => addShock(shock)}
                       disabled={selected.length >= 4 || isSelected}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
@@ -183,6 +220,9 @@ export default function PortfolioPage() {
                           {shock.category}
                         </span>
                       )}
+                      <span className="ml-2 text-xs text-gray-400">
+                        {new Date(shock.t2).toLocaleDateString()}
+                      </span>
                     </button>
                   );
                 })}

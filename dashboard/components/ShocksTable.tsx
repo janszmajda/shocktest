@@ -11,9 +11,15 @@ interface ShocksTableProps {
 type SortKey = "abs_delta" | "t2" | "category" | "source" | "reversion_6h";
 
 export default function ShocksTable({ shocks }: ShocksTableProps) {
-  const [sortBy, setSortBy] = useState<SortKey>("abs_delta");
+  const [sortBy, setSortBy] = useState<SortKey>("t2");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Find the most recent shock timestamp to determine "recent" relative to the dataset
+  const mostRecentT2 = useMemo(() => {
+    if (shocks.length === 0) return 0;
+    return Math.max(...shocks.map((s) => new Date(s.t2).getTime()));
+  }, [shocks]);
 
   const categories = useMemo(() => {
     const cats = new Set(shocks.map((s) => s.category).filter(Boolean));
@@ -147,15 +153,16 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                   {(() => {
-                    const hoursAgo =
-                      (Date.now() - new Date(shock.t2).getTime()) / 3600000;
-                    if (hoursAgo < 48) {
+                    const shockTime = new Date(shock.t2).getTime();
+                    const hoursSinceMostRecent =
+                      (mostRecentT2 - shockTime) / 3600000;
+                    if (hoursSinceMostRecent < 48) {
                       return (
                         <span className="flex items-center gap-1.5">
                           <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 animate-pulse">
-                            LIVE
+                            RECENT
                           </span>
-                          {Math.round(hoursAgo)}h ago
+                          {new Date(shock.t2).toLocaleDateString()}
                         </span>
                       );
                     }
