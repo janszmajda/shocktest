@@ -112,9 +112,11 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      {/* Stats bar — full width, sits right under nav like Polymarket */}
+      {!loading && <StatsCards stats={filteredStats} />}
+      <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         {usingDummy && !loading && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-700">
+          <div className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
             Showing dummy data — real data will appear once the analysis pipeline
             runs.
           </div>
@@ -127,11 +129,12 @@ export default function Home() {
               categories={categories}
               onFilterChange={handleFilterChange}
             />
-            <StatsCards stats={filteredStats} />
             <FindingsBlock stats={filteredStats} />
             <ShocksTable shocks={filteredShocks} />
-            <Histogram shocks={filteredShocks} />
-            <CategoryBreakdown stats={stats} />
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <Histogram shocks={filteredShocks} />
+              <CategoryBreakdown stats={stats} />
+            </div>
           </>
         )}
       </main>

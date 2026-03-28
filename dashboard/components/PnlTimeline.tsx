@@ -48,18 +48,18 @@ export default function PnlTimeline({
 
   if (data.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm text-gray-400">
+      <div className="flex h-48 items-center justify-center rounded-lg border border-border bg-surface-1 text-sm text-text-muted">
         No post-shock price data available for P&L timeline
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h4 className="text-lg font-semibold text-gray-900">
+    <div className="rounded-lg border border-border bg-surface-1 p-6">
+      <h4 className="text-lg font-semibold text-text-primary">
         P&L Over Time (if you faded at shock peak)
       </h4>
-      <p className="mb-4 text-xs text-gray-500">
+      <p className="mb-4 text-xs text-text-muted">
         Shows how your ${positionSize} fade position would have performed over
         24 hours
       </p>
@@ -69,31 +69,32 @@ export default function PnlTimeline({
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 10, fill: "#55555f" }}
+              stroke="#55555f"
               label={{
                 value: "Hours After Shock",
                 position: "bottom",
                 offset: 0,
-                style: { fontSize: 11, fill: "#9ca3af" },
+                style: { fontSize: 11, fill: "#55555f" },
               }}
             />
             <YAxis
               tickFormatter={(v: number) => `$${v}`}
-              tick={{ fontSize: 11 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 10, fill: "#55555f" }}
+              stroke="#55555f"
             />
             <Tooltip
+              contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
             />
-            <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="#55555f" strokeDasharray="3 3" />
             <Line
               type="monotone"
               dataKey="pnl"
-              stroke="#2563eb"
+              stroke="#5b8def"
               dot={false}
               strokeWidth={2}
             />

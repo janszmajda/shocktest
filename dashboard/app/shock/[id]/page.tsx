@@ -124,17 +124,17 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="inline-flex items-center text-sm text-blue-600 hover:underline"
+          className="inline-flex items-center text-sm text-accent hover:underline"
         >
           &larr; Back to dashboard
         </Link>
 
         {/* 1. Market title + shock metadata */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-text-primary">
             {shock.question}
           </h2>
-          <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-500">
+          <div className="mt-2 flex flex-wrap gap-3 text-sm text-text-muted">
             <span>Source: {shock.source}</span>
             <span>&middot;</span>
             <span>Category: {shock.category ?? "uncategorized"}</span>
@@ -149,12 +149,12 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* Shared position size control */}
-        <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
-          <label className="text-sm font-medium text-gray-700">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-4 py-3">
+          <label className="text-sm font-medium text-text-secondary">
             Position Size:
           </label>
           <div className="flex items-center gap-1">
-            <span className="text-sm text-gray-500">$</span>
+            <span className="text-sm text-text-muted">$</span>
             <input
               type="number"
               value={positionSize}
@@ -165,20 +165,26 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               }
               min={1}
               max={10000}
-              className="w-28 rounded-md border border-gray-300 px-2 py-1 text-sm"
+              className="w-28 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
             />
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-text-muted">
             Shared across all analysis below
           </p>
         </div>
 
         {/* 2. PriceChart */}
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h3 className="mb-4 text-sm font-medium text-gray-500">
+        <div className="rounded-lg border border-border bg-surface-1 p-6">
+          <h3 className="mb-4 text-sm font-medium text-text-muted">
             Probability Over Time
           </h3>
-          <PriceChart series={series} shockT1={shockT1} shockT2={shockT2} />
+          <PriceChart
+            series={series}
+            shockT1={shockT1}
+            shockT2={shockT2}
+            pBefore={shock.p_before}
+            pAfter={shock.p_after}
+          />
         </div>
 
         {/* 2b. AI Analysis (if available) */}
@@ -243,55 +249,55 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
 
         {/* 7. Post-Shock Outcomes Table */}
         <div>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-text-primary">
             Post-Shock Outcomes
           </h3>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-surface-2">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">
                     Horizon
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
                     Post Move
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
                     Reversion
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
+              <tbody className="divide-y divide-border bg-surface-1">
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     1 hour
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_1h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_1h)}
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     6 hours
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_6h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_6h)}
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
                     24 hours
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.post_move_24h)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
                     {formatPp(shock.reversion_24h)}
                   </td>
                 </tr>
@@ -301,8 +307,8 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
         </div>
 
         {/* 8. Caveats */}
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs text-gray-400">
+        <div className="rounded-lg border border-border bg-surface-2 p-4">
+          <p className="text-xs text-text-muted">
             All analysis is based on historical data. In-sample backtest only —
             no out-of-sample validation. Ignores transaction costs, slippage, and
             liquidity constraints. Small sample size — edge may not persist. This

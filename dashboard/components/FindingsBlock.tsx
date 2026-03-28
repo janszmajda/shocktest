@@ -10,8 +10,8 @@ export default function FindingsBlock({ stats }: FindingsBlockProps) {
 
   if (rate6h === null || mean6h === null) {
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-        <p className="text-sm text-yellow-800">
+      <div className="rounded-lg border border-border bg-surface-2 p-4">
+        <p className="text-sm text-text-muted">
           Waiting for analysis results. Stats will appear here once the analysis
           pipeline runs.
         </p>
@@ -22,16 +22,25 @@ export default function FindingsBlock({ stats }: FindingsBlockProps) {
   const winRate = stats.backtest?.win_rate_6h;
 
   return (
-    <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4">
-      <p className="text-base leading-relaxed text-blue-900">
-        Across <strong>{stats.total_shocks}</strong> probability shocks in{" "}
-        <strong>{stats.total_markets}</strong> markets, we found that{" "}
-        <strong>{(rate6h * 100).toFixed(0)}%</strong> reverted within 6 hours
+    <div className="rounded-lg border-l-2 border-accent bg-accent-dim p-4">
+      <p className="text-sm leading-relaxed text-text-primary">
+        Across{" "}
+        <span className="font-mono font-semibold">{stats.total_shocks}</span>{" "}
+        probability shocks in{" "}
+        <span className="font-mono font-semibold">{stats.total_markets}</span>{" "}
+        markets,{" "}
+        <span className="font-mono font-semibold text-yes-text">
+          {(rate6h * 100).toFixed(0)}%
+        </span>{" "}
+        reverted within 6 hours
         {winRate !== null && winRate !== undefined && (
           <>
             {" "}
             — with a simulated fade strategy producing a{" "}
-            <strong>{(winRate * 100).toFixed(0)}%</strong> win rate
+            <span className="font-mono font-semibold text-yes-text">
+              {(winRate * 100).toFixed(0)}%
+            </span>{" "}
+            win rate
           </>
         )}
         .

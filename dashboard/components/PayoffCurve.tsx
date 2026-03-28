@@ -55,11 +55,11 @@ export default function PayoffCurve({
   }, [entryPrice, positionSize, direction]);
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h4 className="text-lg font-semibold text-gray-900">
+    <div className="rounded-lg border border-border bg-surface-1 p-6">
+      <h4 className="text-lg font-semibold text-text-primary">
         Payoff Curve — P&L by Resolution Outcome
       </h4>
-      <p className="mb-4 text-xs text-gray-500">
+      <p className="mb-4 text-xs text-text-muted">
         If you {direction === "buy_no" ? "buy NO" : "buy YES"} at{" "}
         {(entryPrice * 100).toFixed(0)}% with ${positionSize}
       </p>
@@ -69,68 +69,69 @@ export default function PayoffCurve({
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="probability"
               tickFormatter={(v: number) => `${v}%`}
-              tick={{ fontSize: 11 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 10, fill: "#55555f" }}
+              stroke="#55555f"
               label={{
                 value: "Resolution Probability (%)",
                 position: "bottom",
                 offset: 0,
-                style: { fontSize: 11, fill: "#9ca3af" },
+                style: { fontSize: 11, fill: "#55555f" },
               }}
             />
             <YAxis
               tickFormatter={(v: number) => `$${v}`}
-              tick={{ fontSize: 11 }}
-              stroke="#9ca3af"
+              tick={{ fontSize: 10, fill: "#55555f" }}
+              stroke="#55555f"
               label={{
                 value: "P&L ($)",
                 angle: -90,
                 position: "insideLeft",
-                style: { fontSize: 11, fill: "#9ca3af" },
+                style: { fontSize: 11, fill: "#55555f" },
               }}
             />
             <Tooltip
+              contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
               labelFormatter={(label) => `${label}%`}
             />
-            <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="#55555f" strokeDasharray="3 3" />
             <ReferenceLine
               x={Math.round(currentPrice * 100)}
-              stroke="#2563eb"
+              stroke="#5b8def"
               strokeDasharray="5 5"
               label={{
                 value: "Current",
                 position: "top",
-                style: { fontSize: 10, fill: "#2563eb" },
+                style: { fontSize: 10, fill: "#5b8def" },
               }}
             />
             {meanReversionTarget !== null && (
               <ReferenceLine
                 x={Math.round(meanReversionTarget * 100)}
-                stroke="#22c55e"
+                stroke="#22c78a"
                 strokeDasharray="5 5"
                 label={{
                   value: "Reversion Target",
                   position: "top",
-                  style: { fontSize: 10, fill: "#22c55e" },
+                  style: { fontSize: 10, fill: "#22c78a" },
                 }}
               />
             )}
             <Area
               type="monotone"
               dataKey="pnl"
-              fill="#22c55e"
+              fill="#22c78a"
               fillOpacity={0.08}
               stroke="none"
             />
             <Line
               type="monotone"
               dataKey="pnl"
-              stroke="#2563eb"
+              stroke="#5b8def"
               dot={false}
               strokeWidth={2}
             />
