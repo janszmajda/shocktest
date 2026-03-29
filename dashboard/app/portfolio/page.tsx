@@ -27,6 +27,7 @@ interface SelectedShock {
   p_before: number;
   positionSize: number;
   ai_analysis?: Shock["ai_analysis"];
+  source: "manual" | "ai";
 }
 
 export default function PortfolioPage() {
@@ -38,6 +39,9 @@ export default function PortfolioPage() {
   const fetchingRef = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [totalBudget, setTotalBudget] = useState(400);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentReport, setAgentReport] = useState<string | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/shocks")
@@ -182,6 +186,7 @@ export default function PortfolioPage() {
         p_before: shock.p_before,
         positionSize: 100,
         ai_analysis: shock.ai_analysis,
+        source: "manual",
       },
     ]);
   };
@@ -202,6 +207,63 @@ export default function PortfolioPage() {
     if (selected.length === 0) return;
     const perPosition = Math.round(totalBudget / selected.length);
     setSelected(selected.map((s) => ({ ...s, positionSize: perPosition })));
+  };
+
+  const buildWithAgent = async () => {
+    setAgentLoading(true);
+    setAgentReport(null);
+    setAgentError(null);
+    try {
+      const res = await fetch("/api/portfolio-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankroll: totalBudget }),
+      });
+      const data = (await res.json()) as {
+        report?: string;
+        allocations?: Array<{
+          shock_id?: string;
+          market_id: string;
+          question: string;
+          category: string | null;
+          delta: number;
+          p_after: number;
+          current_price?: number | null;
+          size: number;
+        }>;
+        error?: string;
+      };
+      if (data.error) throw new Error(data.error);
+      if (data.report) setAgentReport(data.report);
+      if (data.allocations && data.allocations.length > 0) {
+        const aiPicks: SelectedShock[] = [];
+        for (const alloc of data.allocations) {
+          const match = allShocks.find(
+            (s) => s.market_id === alloc.market_id || s._id === alloc.shock_id,
+          );
+          aiPicks.push({
+            market_id: match?.market_id ?? alloc.market_id,
+            question: match?.question ?? alloc.question,
+            category: match?.category ?? alloc.category,
+            delta: match?.delta ?? alloc.delta,
+            p_after: match?.p_after ?? alloc.p_after,
+            p_before: match?.p_before ?? alloc.p_after,
+            positionSize: alloc.size,
+            ai_analysis: match?.ai_analysis,
+            source: "ai",
+          });
+        }
+        setSelected((prev) => {
+          const aiIds = new Set(aiPicks.map((p) => p.market_id));
+          const kept = prev.filter((s) => !aiIds.has(s.market_id));
+          return [...kept, ...aiPicks].slice(0, 8);
+        });
+      }
+    } catch (e) {
+      setAgentError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAgentLoading(false);
+    }
   };
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -280,6 +342,42 @@ export default function PortfolioPage() {
     <>
       <Header />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* AI Portfolio Builder */}
+        <div className="mb-6 rounded-xl border border-border bg-surface-1 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">AI Portfolio Builder</h3>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Claude searches the web, picks the best fades, and sizes with half-Kelly.
+              </p>
+            </div>
+            <button
+              onClick={buildWithAgent}
+              disabled={agentLoading}
+              className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {agentLoading ? "Building..." : "Build with AI"}
+            </button>
+          </div>
+          {agentLoading && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-text-muted">
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Searching the web and building portfolio...
+            </div>
+          )}
+          {agentError && (
+            <p className="mt-3 text-xs text-no-text">{agentError}</p>
+          )}
+          {agentReport && (
+            <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-border bg-surface-2 p-4 text-xs leading-relaxed text-text-secondary">
+              {agentReport}
+            </pre>
+          )}
+        </div>
+
         {loading ? (
           <LoadingSpinner />
         ) : (

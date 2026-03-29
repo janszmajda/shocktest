@@ -48,8 +48,13 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [positionSize, setPositionSize] = useState(100);
   const [advisorLoading, setAdvisorLoading] = useState(false);
-  const [advisorAnalysis, setAdvisorAnalysis] = useState<string | null>(null);
+  const [advisorAnalysis, setAdvisorAnalysis] = useState<{
+    event: string;
+    decision: string;
+    details: string;
+  } | null>(null);
   const [advisorError, setAdvisorError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -139,12 +144,17 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           reversion_1h: shock.reversion_1h,
           reversion_6h: shock.reversion_6h,
           reversion_24h: shock.reversion_24h,
+          current_price: currentPrice,
           category_win_rate: categoryWinRate,
         }),
       });
-      const data = (await res.json()) as { analysis?: string; error?: string };
+      const data = (await res.json()) as {
+        analysis?: { event: string; decision: string; details: string };
+        error?: string;
+      };
       if (data.error) throw new Error(data.error);
       setAdvisorAnalysis(data.analysis ?? null);
+      setDetailsOpen(false);
     } catch (e) {
       setAdvisorError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -192,6 +202,70 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               {(shock.delta * 100).toFixed(1)}pp)
             </span>
           </div>
+        </div>
+
+        {/* AI Advisor */}
+        <div className="rounded-lg border border-border bg-surface-1 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary">AI Advisor</h3>
+            <button
+              onClick={askAdvisor}
+              disabled={advisorLoading}
+              className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {advisorLoading ? "Searching..." : advisorAnalysis ? "Re-analyze" : "Explain Shock"}
+            </button>
+          </div>
+          {!advisorAnalysis && !advisorLoading && !advisorError && (
+            <p className="mt-2 text-sm text-text-muted">
+              Searches the web for what caused this shock and gives a trade recommendation.
+            </p>
+          )}
+          {advisorLoading && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-text-muted">
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Searching the web and analyzing...
+            </div>
+          )}
+          {advisorError && (
+            <p className="mt-3 text-sm text-no-text">{advisorError}</p>
+          )}
+          {advisorAnalysis && (
+            <div className="mt-4 space-y-3">
+              <div className="flex gap-2">
+                <span className="mt-0.5 text-text-muted">&#x2022;</span>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-muted">What happened</p>
+                  <p className="mt-0.5 text-sm text-text-secondary">{advisorAnalysis.event}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <span className="mt-0.5 text-text-muted">&#x2022;</span>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Recommendation</p>
+                  <p className="mt-0.5 text-sm text-text-secondary">{advisorAnalysis.decision}</p>
+                </div>
+              </div>
+              {advisorAnalysis.details && (
+                <div className="border-t border-border pt-2">
+                  <button
+                    onClick={() => setDetailsOpen(!detailsOpen)}
+                    className="text-xs font-medium text-accent hover:underline"
+                  >
+                    {detailsOpen ? "Hide details" : "Show details"}
+                  </button>
+                  {detailsOpen && (
+                    <p className="mt-2 text-sm leading-relaxed text-text-muted">
+                      {advisorAnalysis.details}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Shared position size control */}
@@ -354,41 +428,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </div>
         </div>
 
-        {/* 8. K2 Advisor */}
-        <div className="rounded-lg border border-border bg-surface-1 p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-text-muted">AI Advisor</h3>
-            <button
-              onClick={askAdvisor}
-              disabled={advisorLoading}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-2 disabled:opacity-50"
-            >
-              {advisorLoading ? "Thinking..." : advisorAnalysis ? "Re-analyze" : "Analyze with K2"}
-            </button>
-          </div>
-          {!advisorAnalysis && !advisorLoading && !advisorError && (
-            <p className="mt-2 text-sm text-text-muted">
-              AI breakdown of this spike — cause, scenarios, sentiment, and trade recommendation.
-            </p>
-          )}
-          {advisorLoading && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-text-muted">
-              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              Reasoning through the shock...
-            </div>
-          )}
-          {advisorError && (
-            <p className="mt-3 text-sm text-no-text">{advisorError}</p>
-          )}
-          {advisorAnalysis && (
-            <p className="mt-3 text-sm leading-relaxed text-text-secondary">{advisorAnalysis}</p>
-          )}
-        </div>
-
-        {/* 9. Caveats */}
+        {/* 8. Caveats */}
         <div className="rounded-lg border border-border bg-surface-2 p-4">
           <p className="text-xs text-text-muted">
             All analysis is based on historical data. In-sample backtest only —
