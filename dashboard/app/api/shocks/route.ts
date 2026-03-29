@@ -16,10 +16,7 @@ export async function GET(request: NextRequest) {
       ? { source: "polymarket" }
       : {
           source: "polymarket",
-          $or: [
-            { detected_at: { $gte: oneHourAgo } },
-            { t2: { $gte: oneHourAgo } },
-          ],
+          t2: { $gte: oneHourAgo },
         };
 
     const raw = await db

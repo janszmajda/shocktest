@@ -661,27 +661,21 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  /* Filter out resolved markets using latest available price data */
+  /* Filter out resolved markets — only remove if price is exactly at 0% or 100%.
+     Markets waiting for resolution (e.g. past close date but not yet settled)
+     will still have prices like 3% or 97%, so we use a tight threshold. */
   const liveShocks = useMemo(() => {
     return allShocks.filter((s) => {
-      // Check series data first (most up-to-date)
+      // Check series data first (most up-to-date price)
       const series = seriesMap[s.market_id];
       if (series && series.length > 0) {
         const latestP = series[series.length - 1].p;
-        if (latestP <= 0.01 || latestP >= 0.99) return false;
+        // Truly resolved = price snapped to 0 or 1 (within rounding)
+        if (latestP <= 0.005 || latestP >= 0.995) return false;
       }
-      // Check close time
-      const closeTime = closeTimeMap[s.market_id];
-      if (closeTime != null && closeTime < now / 1000) return false;
-      // Check post_move fields as fallback
-      let currentP = s.p_after;
-      if (s.post_move_24h != null) currentP = s.p_after + s.post_move_24h;
-      else if (s.post_move_6h != null) currentP = s.p_after + s.post_move_6h;
-      else if (s.post_move_1h != null) currentP = s.p_after + s.post_move_1h;
-      if (currentP <= 0.01 || currentP >= 0.99) return false;
       return true;
     });
-  }, [allShocks, seriesMap, closeTimeMap, now]);
+  }, [allShocks, seriesMap]);
 
   /* === Section 2: Featured shocks === */
   const featuredShocks = useMemo(() => {
