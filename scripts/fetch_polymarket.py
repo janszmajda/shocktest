@@ -180,6 +180,7 @@ def store_market(market: dict, series: list[dict]) -> int:
         "series": sorted(series, key=lambda x: x["t"]),
         "category": api_category,  # from Polymarket tags; categorize.py fills gaps
         "close_time": close_time,
+        "image_url": market.get("icon") or market.get("image") or None,
     }
 
     db["market_series"].update_one(

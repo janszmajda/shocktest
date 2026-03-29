@@ -4,11 +4,13 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Shock, PricePoint } from "@/lib/types";
 import { DashboardFilters } from "@/components/DashboardControls";
+import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 
 interface ShocksTableProps {
   shocks: Shock[];
   seriesMap?: Record<string, PricePoint[]>;
   closeTimeMap?: Record<string, number | null>;
+  imageMap?: Record<string, string | null>;
   theta?: number;
   horizon?: "1h" | "6h" | "24h";
   onFilterChange?: (filters: Partial<DashboardFilters>) => void;
@@ -120,6 +122,7 @@ export default function ShocksTable({
   shocks,
   seriesMap = {},
   closeTimeMap = {},
+  imageMap = {},
   theta = 0.08,
   horizon = "6h",
   onFilterChange,
@@ -333,11 +336,18 @@ export default function ShocksTable({
                       LIVE
                     </span>
                   )}
-                  {shock.category && (
-                    <span className="inline-flex rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-text-muted">
-                      {shock.category}
-                    </span>
-                  )}
+                  {shock.category && (() => {
+                    const catColor = getCategoryColor(shock.category);
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                        style={{ color: catColor.text, backgroundColor: catColor.bg }}
+                      >
+                        <CategoryIcon category={shock.category} className="h-3 w-3" />
+                        {shock.category}
+                      </span>
+                    );
+                  })()}
                   <span className="text-[10px] text-text-muted">
                     {shock.source}
                   </span>
@@ -347,10 +357,23 @@ export default function ShocksTable({
                 </span>
               </div>
 
-              {/* Title */}
-              <p className="text-sm font-medium leading-snug text-text-primary">
-                {shock.question}
-              </p>
+              {/* Title with market image */}
+              <div className="flex items-start gap-2.5">
+                {imageMap[shock.market_id] ? (
+                  <img
+                    src={imageMap[shock.market_id]!}
+                    alt=""
+                    className="mt-0.5 h-8 w-8 shrink-0 rounded-md object-cover"
+                  />
+                ) : (
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-3">
+                    <CategoryIcon category={shock.category} className="h-4 w-4 text-text-muted" />
+                  </span>
+                )}
+                <p className="text-sm font-medium leading-snug text-text-primary">
+                  {shock.question}
+                </p>
+              </div>
 
               {/* Sparkline preview */}
               <div className="mt-3 flex items-end justify-between gap-3">
