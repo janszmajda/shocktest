@@ -513,7 +513,7 @@ export default function Home() {
   if (loading) {
     return (
       <>
-        <nav className="sticky top-0 z-50 border-b-2 border-b-accent bg-surface-base">
+        <nav className="sticky top-0 z-50 bg-surface-base" style={{ borderBottom: "2px solid var(--st-accent)" }}>
           <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
             <Image
               src="/Frame 9.svg"
@@ -535,7 +535,7 @@ export default function Home() {
   return (
     <>
       {/* ── SECTION 1: Sticky Nav ── */}
-      <nav className="sticky top-0 z-50 border-b-2 border-b-accent bg-surface-base">
+      <nav className="sticky top-0 z-50 bg-surface-base" style={{ borderBottom: "2px solid var(--st-accent)" }}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Image
             src="/Frame 9.svg"
