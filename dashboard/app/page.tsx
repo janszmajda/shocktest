@@ -7,9 +7,9 @@ import PortfolioBuilder from "@/components/PortfolioBuilder";
 import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import Footer from "@/components/Footer";
-import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
+import { DUMMY_STATS } from "@/lib/dummyData";
 import { Shock, AggregateStats, PricePoint } from "@/lib/types";
-import { cachedFetch } from "@/lib/fetchCache";
+import { cachedFetch, invalidate } from "@/lib/fetchCache";
 
 /* ── Helpers ── */
 
@@ -229,22 +229,81 @@ function ShockCard({
   );
 }
 
-/* ── Main Page ── */
+/** Circular progress ring that fills over `durationMs` then resets */
+function CountdownRing({ durationMs }: { durationMs: number }) {
+  const [progress, setProgress] = useState(0);
+  const startRef = useRef(0);
 
-const GRID_PAGE_SIZE = 20;
+  useEffect(() => {
+    startRef.current = Date.now();
+    let raf: number;
+    const tick = () => {
+      const elapsed = Date.now() - startRef.current;
+      const pct = Math.min(elapsed / durationMs, 1);
+      setProgress(pct);
+      if (pct >= 1) {
+        // Reset after full cycle
+        startRef.current = Date.now();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [durationMs]);
+
+  const r = 22;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - progress);
+  const secs = Math.max(0, Math.ceil((durationMs - progress * durationMs) / 1000));
+
+  return (
+    <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center">
+      <svg width={52} height={52} className="-rotate-90">
+        {/* Track */}
+        <circle
+          cx={26}
+          cy={26}
+          r={r}
+          fill="none"
+          stroke="var(--st-s3)"
+          strokeWidth={3}
+        />
+        {/* Progress */}
+        <circle
+          cx={26}
+          cy={26}
+          r={r}
+          fill="none"
+          stroke="var(--st-yes)"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.3s linear" }}
+        />
+      </svg>
+      <span className="absolute font-mono text-[11px] text-text-muted">
+        {secs}s
+      </span>
+    </div>
+  );
+}
+
+/* ── Main Page ── */
 
 export default function Home() {
   /* === Shared state === */
-  const [allShocks, setAllShocks] = useState<Shock[]>(DUMMY_SHOCKS);
-  const [, setStats] = useState<AggregateStats>(DUMMY_STATS);
+  const [allShocks, setAllShocks] = useState<Shock[]>([]);
+  const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
   const [loading, setLoading] = useState(true);
-  const [usingDummy, setUsingDummy] = useState(true);
+  const [usingDummy, setUsingDummy] = useState(false);
   const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
   const [closeTimeMap, setCloseTimeMap] = useState<
     Record<string, number | null>
   >({});
   const [imageMap, setImageMap] = useState<Record<string, string | null>>({});
   const [now] = useState(() => Date.now());
+  const [lastScanText, setLastScanText] = useState("");
 
   /* Sparkline lazy-loading */
   const fetchedIdsRef = useRef<Set<string>>(new Set());
@@ -289,16 +348,15 @@ export default function Home() {
     }, 300);
   }, []);
 
-  /* Data fetching */
+  /* Data fetching — every 60 seconds */
   const fetchData = useCallback(() => {
+    // Invalidate cache so we get fresh data each poll
+    invalidate("/api/shocks");
     Promise.all([
       cachedFetch<Shock[]>("/api/shocks")
         .then((data) => {
-          if (data.length > 0) {
-            setAllShocks(data);
-            return true;
-          }
-          return false;
+          setAllShocks(data);
+          return data.length > 0;
         })
         .catch(() => false),
       cachedFetch<AggregateStats>("/api/stats")
@@ -311,27 +369,26 @@ export default function Home() {
         })
         .catch(() => false),
     ]).then(([shocksOk, statsOk]) => {
-      setUsingDummy(!(shocksOk || statsOk));
+      setUsingDummy(!shocksOk && !statsOk);
       setLoading(false);
+      setLastScanText("just now");
     });
   }, []);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 120000);
+    const interval = setInterval(fetchData, 60000); // 60s refresh
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  /* === Section 2: Featured shocks (top 3) === */
+  /* === Section 2: Featured shocks === */
   const featuredShocks = useMemo(() => {
     return [...allShocks]
       .filter((s) => s.p_after > 0.01 && s.p_after < 0.99)
       .sort((a, b) => {
-        // Prefer live alerts
         const aLive = a.is_live_alert ? 1 : 0;
         const bLive = b.is_live_alert ? 1 : 0;
         if (aLive !== bLive) return bLive - aLive;
-        // Then by detected_at or t2 desc
         const aTime = a.detected_at
           ? new Date(a.detected_at).getTime()
           : new Date(a.t2).getTime();
@@ -343,7 +400,7 @@ export default function Home() {
       .slice(0, 3);
   }, [allShocks]);
 
-  // Fetch featured sparklines on mount
+  // Fetch featured sparklines
   useEffect(() => {
     if (featuredShocks.length > 0) {
       fetchMiniSeries(featuredShocks.map((s) => s.market_id));
@@ -361,6 +418,7 @@ export default function Home() {
   }, [allShocks]);
 
   /* === Section 6: All shocks grid with infinite scroll === */
+  const GRID_PAGE_SIZE = 20;
   const [gridCategory, setGridCategory] = useState<string>("all");
   const [gridVisibleCount, setGridVisibleCount] = useState(GRID_PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -414,13 +472,16 @@ export default function Home() {
     setGridVisibleCount(GRID_PAGE_SIZE);
   }, []);
 
-  /* Category list with counts */
-  const categories = useMemo(() => {
-    return Array.from(
-      new Set(allShocks.map((s) => s.category).filter(Boolean)),
-    ) as string[];
-  }, [allShocks]);
+  /* All known categories (from stats, which has the full dataset) */
+  const allCategories = useMemo(() => {
+    const fromStats = stats.by_category ? Object.keys(stats.by_category) : [];
+    const fromShocks = allShocks
+      .map((s) => s.category)
+      .filter((c): c is string => !!c);
+    return Array.from(new Set([...fromStats, ...fromShocks])).sort();
+  }, [stats, allShocks]);
 
+  /* Category counts from the current (last-hour) shocks only */
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of allShocks) {
@@ -435,6 +496,10 @@ export default function Home() {
     (a, b) => a + b,
     0,
   );
+
+  const marketCount = stats.total_markets || 0;
+
+  const noShocks = !loading && allShocks.length === 0 && !usingDummy;
 
   if (loading) {
     return (
@@ -471,12 +536,7 @@ export default function Home() {
             className="h-11 w-auto"
             priority
           />
-          <Link
-            href="/portfolio"
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-primary"
-          >
-            Full Portfolio &rarr;
-          </Link>
+          <div />
         </div>
       </nav>
 
@@ -490,218 +550,258 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── SECTION 2: Featured Shocks (3 cards) ── */}
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {featuredShocks.map((shock) => (
-              <ShockCard
-                key={shock._id}
-                shock={shock}
-                series={seriesMap[shock.market_id]}
-                imageUrl={imageMap[shock.market_id]}
-                closeTime={closeTimeMap[shock.market_id]}
-                horizon="6h"
-                now={now}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ── SECTION 3: Explainer Text ── */}
-        <section className="mx-auto max-w-7xl px-4 py-8 text-center sm:px-6 lg:px-8">
-          <p className="text-sm text-text-muted">
-            ShockTest detects sudden probability moves on Polymarket and
-            analyzes whether they&apos;re overreactions. Browse live shocks
-            below, build a fade portfolio, or click any market for deep
-            analysis.
-          </p>
-        </section>
-
-        {/* ── SECTION 4: Portfolio Builder ── */}
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <PortfolioBuilder allShocks={allShocks} />
-        </section>
-
-        {/* ── SECTION 5: AI Analysis Bar ── */}
-        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="rounded-lg bg-surface-2 px-6 py-5">
-            {aiPreview?.ai_analysis ? (
-              <div className="flex items-start gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-dim">
-                  <svg
-                    className="h-4 w-4 text-accent"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
+        {/* ── Empty state when no shocks in the last hour ── */}
+        {noShocks ? (
+          <section className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-md">
+              <CountdownRing durationMs={60000} />
+              <p className="text-sm text-text-secondary">
+                No shocks detected in the last hour.
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Markets are quiet — check back soon.
+              </p>
+              <p className="mt-4 text-[11px] text-text-muted">
+                Monitoring {marketCount > 0 ? marketCount.toLocaleString() : "..."} markets
+                {lastScanText && <> &middot; Last scan: {lastScanText}</>}
+              </p>
+            </div>
+          </section>
+        ) : (
+          <>
+            {/* ── SECTION 2: Featured Shocks ── */}
+            {featuredShocks.length > 0 && (
+              <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+                <div
+                  className={`grid gap-5 ${
+                    featuredShocks.length >= 3
+                      ? "grid-cols-1 md:grid-cols-3"
+                      : featuredShocks.length === 2
+                        ? "grid-cols-1 md:grid-cols-2"
+                        : "grid-cols-1 md:max-w-md"
+                  }`}
+                >
+                  {featuredShocks.map((shock) => (
+                    <ShockCard
+                      key={shock._id}
+                      shock={shock}
+                      series={seriesMap[shock.market_id]}
+                      imageUrl={imageMap[shock.market_id]}
+                      closeTime={closeTimeMap[shock.market_id]}
+                      horizon="6h"
+                      now={now}
                     />
-                  </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-text-primary">
-                    AI Insight &mdash; {aiPreview.question}
-                  </p>
-                  <p className="mt-1 text-xs text-text-secondary">
-                    {aiPreview.ai_analysis.likely_cause}
-                  </p>
-                  <p className="mt-0.5 text-xs text-text-muted">
-                    Reversion confidence:{" "}
-                    <span
-                      className={
-                        aiPreview.ai_analysis.reversion_confidence === "high"
-                          ? "font-semibold text-yes-text"
-                          : aiPreview.ai_analysis.reversion_confidence ===
-                              "medium"
-                            ? "font-semibold text-text-secondary"
-                            : "font-semibold text-no-text"
-                      }
-                    >
-                      {aiPreview.ai_analysis.reversion_confidence}
-                    </span>
-                  </p>
-                </div>
-                <Link
-                  href={`/shock/${aiPreview._id}`}
-                  className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-                >
-                  Analyze
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-3 py-2">
-                <svg
-                  className="h-4 w-4 text-text-muted"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                <p className="text-sm text-text-muted">
-                  Select shocks above to get AI-powered portfolio analysis
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── SECTION 6: All Shocks Grid (infinite scroll) ── */}
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="flex gap-6">
-            {/* Category sidebar */}
-            <aside className="hidden w-48 shrink-0 lg:block">
-              <div className="sticky top-20">
-                <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                  Categories
-                </h3>
-                <ul className="space-y-0.5">
-                  <li>
-                    <button
-                      onClick={() => handleGridCategoryChange("all")}
-                      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
-                        gridCategory === "all"
-                          ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
-                          : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
-                      }`}
-                    >
-                      <span>All</span>
-                      <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
-                        {totalShockCount}
-                      </span>
-                    </button>
-                  </li>
-                  {categories.map((cat) => (
-                    <li key={cat}>
-                      <button
-                        onClick={() => handleGridCategoryChange(cat)}
-                        className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
-                          gridCategory === cat
-                            ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
-                            : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            style={{
-                              color: getCategoryColor(cat).text,
-                            }}
-                          >
-                            <CategoryIcon
-                              category={cat}
-                              className="h-3.5 w-3.5"
-                            />
-                          </span>
-                          {cat}
-                        </span>
-                        <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
-                          {categoryCounts[cat] ?? 0}
-                        </span>
-                      </button>
-                    </li>
                   ))}
-                </ul>
-              </div>
-            </aside>
-
-            {/* Mobile category select */}
-            <div className="mb-4 w-full lg:hidden">
-              <select
-                value={gridCategory}
-                onChange={(e) => handleGridCategoryChange(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary"
-              >
-                <option value="all">All ({totalShockCount})</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat} ({categoryCounts[cat] ?? 0})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Grid of shock cards */}
-            <div className="min-w-0 flex-1">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {gridVisible.map((shock) => (
-                  <ShockCard
-                    key={shock._id}
-                    shock={shock}
-                    series={seriesMap[shock.market_id]}
-                    imageUrl={imageMap[shock.market_id]}
-                    closeTime={closeTimeMap[shock.market_id]}
-                    horizon="6h"
-                    now={now}
-                  />
-                ))}
-              </div>
-
-              {/* Sentinel for infinite scroll */}
-              {gridHasMore && (
-                <div ref={sentinelRef} className="py-8 text-center">
-                  <span className="text-xs text-text-muted">
-                    Loading more shocks...
-                  </span>
                 </div>
-              )}
+              </section>
+            )}
 
-              {gridShocks.length === 0 && (
-                <div className="py-16 text-center text-sm text-text-muted">
-                  No shocks in this category
+            {/* ── SECTION 3: Explainer Text ── */}
+            <section className="mx-auto max-w-7xl px-4 py-8 text-center sm:px-6 lg:px-8">
+              <p className="text-sm text-text-muted">
+                ShockTest detects sudden probability moves on Polymarket and
+                analyzes whether they&apos;re overreactions. Browse live shocks
+                below, build a fade portfolio, or click any market for deep
+                analysis.
+              </p>
+            </section>
+
+            {/* ── SECTION 4: Portfolio Builder ── */}
+            <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <PortfolioBuilder allShocks={allShocks} />
+            </section>
+
+            {/* ── SECTION 5: AI Analysis Bar ── */}
+            <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+              <div className="rounded-lg bg-surface-2 px-6 py-5">
+                {aiPreview?.ai_analysis ? (
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-dim">
+                      <svg
+                        className="h-4 w-4 text-accent"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-text-primary">
+                        AI Insight &mdash; {aiPreview.question}
+                      </p>
+                      <p className="mt-1 text-xs text-text-secondary">
+                        {aiPreview.ai_analysis.likely_cause}
+                      </p>
+                      <p className="mt-0.5 text-xs text-text-muted">
+                        Reversion confidence:{" "}
+                        <span
+                          className={
+                            aiPreview.ai_analysis.reversion_confidence ===
+                            "high"
+                              ? "font-semibold text-yes-text"
+                              : aiPreview.ai_analysis
+                                    .reversion_confidence === "medium"
+                                ? "font-semibold text-text-secondary"
+                                : "font-semibold text-no-text"
+                          }
+                        >
+                          {aiPreview.ai_analysis.reversion_confidence}
+                        </span>
+                      </p>
+                    </div>
+                    <Link
+                      href={`/shock/${aiPreview._id}`}
+                      className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                    >
+                      Analyze
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-3 py-2">
+                    <svg
+                      className="h-4 w-4 text-text-muted"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                    <p className="text-sm text-text-muted">
+                      Select shocks above to get AI-powered portfolio analysis
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* ── SECTION 6: All Shocks Grid ── */}
+            <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <div className="flex gap-6">
+                {/* Category sidebar */}
+                <aside className="hidden w-48 shrink-0 lg:block">
+                  <div className="sticky top-20">
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                      Categories
+                    </h3>
+                    <ul className="space-y-0.5">
+                      <li>
+                        <button
+                          onClick={() => handleGridCategoryChange("all")}
+                          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
+                            gridCategory === "all"
+                              ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
+                              : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                          }`}
+                        >
+                          <span>All</span>
+                          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                            {totalShockCount}
+                          </span>
+                        </button>
+                      </li>
+                      {allCategories.map((cat) => {
+                        const count = categoryCounts[cat] ?? 0;
+                        const hasShocks = count > 0;
+                        return (
+                          <li key={cat}>
+                            <button
+                              onClick={() => handleGridCategoryChange(cat)}
+                              className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
+                                gridCategory === cat
+                                  ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
+                                  : hasShocks
+                                    ? "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                                    : "text-text-muted opacity-50"
+                              }`}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  style={{
+                                    color: hasShocks
+                                      ? getCategoryColor(cat).text
+                                      : undefined,
+                                  }}
+                                >
+                                  <CategoryIcon
+                                    category={cat}
+                                    className="h-3.5 w-3.5"
+                                  />
+                                </span>
+                                {cat}
+                              </span>
+                              <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                                {count}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </aside>
+
+                {/* Mobile category select */}
+                <div className="mb-4 w-full lg:hidden">
+                  <select
+                    value={gridCategory}
+                    onChange={(e) => handleGridCategoryChange(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary"
+                  >
+                    <option value="all">All ({totalShockCount})</option>
+                    {allCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat} ({categoryCounts[cat] ?? 0})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
-            </div>
-          </div>
-        </section>
+
+                {/* Grid of shock cards with infinite scroll */}
+                <div className="min-w-0 flex-1">
+                  {gridShocks.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {gridVisible.map((shock) => (
+                          <ShockCard
+                            key={shock._id}
+                            shock={shock}
+                            series={seriesMap[shock.market_id]}
+                            imageUrl={imageMap[shock.market_id]}
+                            closeTime={closeTimeMap[shock.market_id]}
+                            horizon="6h"
+                            now={now}
+                          />
+                        ))}
+                      </div>
+                      {gridHasMore && (
+                        <div ref={sentinelRef} className="py-8 text-center">
+                          <span className="text-xs text-text-muted">
+                            Loading more shocks...
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="py-16 text-center text-sm text-text-muted">
+                      No shocks in this category in the last hour
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
       <Footer />

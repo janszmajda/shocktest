@@ -62,7 +62,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
       try {
         // Fetch shock list + stats in parallel (cached across navigations)
         const [shocks, statsData] = await Promise.all([
-          cachedFetch<Shock[]>("/api/shocks").catch(() => null),
+          cachedFetch<Shock[]>("/api/shocks?all=true").catch(() => null),
           cachedFetch<AggregateStats>("/api/stats").catch(() => null),
         ]);
 
