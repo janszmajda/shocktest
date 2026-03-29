@@ -156,11 +156,6 @@ export default function ScenarioPanel({
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-text-muted">
-        Time decay model is a linear approximation. Shorter resolution windows
-        reduce the probability of mean reversion playing out. Not investment
-        advice.
-      </p>
     </div>
   );
 }

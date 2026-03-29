@@ -181,7 +181,7 @@ export default function PriceChart({
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255,255,255,0.06)"
+              stroke="var(--st-grid)"
             />
             <XAxis
               dataKey="t"
@@ -197,10 +197,10 @@ export default function PriceChart({
             />
             <Tooltip
               contentStyle={{
-                background: "#1a1a1f",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: "var(--st-s2)",
+                border: "1px solid var(--st-border)",
                 borderRadius: "8px",
-                color: "#e8e8ed",
+                color: "var(--st-txt)",
                 fontSize: "12px",
               }}
               labelFormatter={(label) => formatDate(label as number)}
@@ -213,9 +213,9 @@ export default function PriceChart({
               <ReferenceArea
                 x1={shockRegion.t1}
                 x2={shockRegion.t2}
-                fill="#f05c5c"
+                fill="var(--st-no)"
                 fillOpacity={0.15}
-                stroke="#f05c5c"
+                stroke="var(--st-no)"
                 strokeOpacity={0.3}
                 label="Shock"
               />
@@ -223,7 +223,7 @@ export default function PriceChart({
             <Line
               type="monotone"
               dataKey="probability"
-              stroke="#22c78a"
+              stroke="var(--st-yes)"
               strokeWidth={2}
               dot={false}
             />

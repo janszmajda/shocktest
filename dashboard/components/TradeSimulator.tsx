@@ -202,7 +202,7 @@ export default function TradeSimulator({
                     }}
                   />
                   <Tooltip
-                    contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
+                    contentStyle={{ background: "var(--st-s2)", border: "1px solid var(--st-border)", borderRadius: "8px", color: "var(--st-txt)", fontSize: "12px" }}
                     formatter={(value, _name, props) => [
                       `${value} shocks (P&L: $${(props.payload as { pnl: string }).pnl})`,
                       "Frequency",
@@ -222,7 +222,7 @@ export default function TradeSimulator({
                     {histogramData.map((entry, index) => (
                       <Cell
                         key={index}
-                        fill={entry.isPositive ? "#22c78a" : "#f05c5c"}
+                        fill={entry.isPositive ? "var(--st-yes)" : "var(--st-no)"}
                       />
                     ))}
                   </Bar>
@@ -233,11 +233,6 @@ export default function TradeSimulator({
         </>
       )}
 
-      <p className="text-xs text-text-muted">
-        In-sample backtest only. Ignores transaction costs, slippage, and
-        liquidity. Small sample size — edge may not persist. Not investment
-        advice.
-      </p>
     </div>
   );
 }

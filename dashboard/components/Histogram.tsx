@@ -102,7 +102,7 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
               margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
               style={{ cursor: "default" }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--st-grid)" />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 10, fill: "var(--st-muted)" }}
@@ -115,10 +115,10 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
               />
               <Tooltip
                 contentStyle={{
-                  background: "#1a1a1f",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  background: "var(--st-s2)",
+                  border: "1px solid var(--st-border)",
                   borderRadius: "8px",
-                  color: "#e8e8ed",
+                  color: "var(--st-txt)",
                   fontSize: "12px",
                 }}
               />
@@ -158,7 +158,7 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
                 {bins.map((bin, idx) => (
                   <Cell
                     key={idx}
-                    fill={bin.isReversion ? "#22c78a" : "#f05c5c"}
+                    fill={bin.isReversion ? "var(--st-yes)" : "var(--st-no)"}
                     fillOpacity={0.8}
                     style={{ cursor: "default" }}
                   />

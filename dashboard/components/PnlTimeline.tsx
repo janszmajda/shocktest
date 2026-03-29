@@ -69,7 +69,7 @@ export default function PnlTimeline({
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--st-grid)" />
             <XAxis
               dataKey="label"
               tick={{ fontSize: 10, fill: "var(--st-muted)" }}
@@ -87,14 +87,14 @@ export default function PnlTimeline({
               stroke="var(--st-muted)"
             />
             <Tooltip
-              contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
+              contentStyle={{ background: "var(--st-s2)", border: "1px solid var(--st-border)", borderRadius: "8px", color: "var(--st-txt)", fontSize: "12px" }}
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
             />
             <ReferenceLine y={0} stroke="var(--st-muted)" strokeDasharray="3 3" />
             <Line
               type="monotone"
               dataKey="pnl"
-              stroke="#F26522"
+              stroke="var(--st-accent)"
               dot={false}
               strokeWidth={2}
             />

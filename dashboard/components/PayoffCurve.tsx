@@ -69,7 +69,7 @@ export default function PayoffCurve({
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--st-grid)" />
             <XAxis
               dataKey="probability"
               tickFormatter={(v: number) => `${v}%`}
@@ -94,7 +94,7 @@ export default function PayoffCurve({
               }}
             />
             <Tooltip
-              contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
+              contentStyle={{ background: "var(--st-s2)", border: "1px solid var(--st-border)", borderRadius: "8px", color: "var(--st-txt)", fontSize: "12px" }}
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
               labelFormatter={(label) => `${label}%`}
             />
@@ -112,19 +112,19 @@ export default function PayoffCurve({
             {meanReversionTarget !== null && (
               <ReferenceLine
                 x={Math.round(meanReversionTarget * 100)}
-                stroke="#22c78a"
+                stroke="var(--st-yes)"
                 strokeDasharray="5 5"
                 label={{
                   value: "Reversion Target",
                   position: "top",
-                  style: { fontSize: 10, fill: "#22c78a" },
+                  style: { fontSize: 10, fill: "var(--st-yes)" },
                 }}
               />
             )}
             <Area
               type="monotone"
               dataKey="pnl"
-              fill="#22c78a"
+              fill="var(--st-yes)"
               fillOpacity={0.08}
               stroke="none"
             />

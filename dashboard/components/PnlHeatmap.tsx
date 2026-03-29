@@ -49,8 +49,8 @@ function pnlColor(pnl: number, maxAbs: number): string {
   const ratio = Math.min(Math.abs(pnl) / maxAbs, 1);
   const alpha = (ratio * 0.6).toFixed(2);
 
-  if (pnl > 0) return `rgba(34, 199, 138, ${alpha})`;
-  if (pnl < 0) return `rgba(240, 92, 92, ${alpha})`;
+  if (pnl > 0) return `color-mix(in srgb, var(--st-yes) ${(Number(alpha) * 100).toFixed(0)}%, transparent)`;
+  if (pnl < 0) return `color-mix(in srgb, var(--st-no) ${(Number(alpha) * 100).toFixed(0)}%, transparent)`;
   return "transparent";
 }
 
