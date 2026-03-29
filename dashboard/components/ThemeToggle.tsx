@@ -4,7 +4,7 @@ import { useSyncExternalStore, useCallback } from "react";
 
 function getTheme(): "dark" | "light" {
   if (typeof window === "undefined") return "dark";
-  return (localStorage.getItem("shocktest-theme") as "dark" | "light") ?? "dark";
+  return (localStorage.getItem("shocktest-theme") as "dark" | "light") ?? "light";
 }
 
 function subscribe(callback: () => void) {
@@ -13,7 +13,7 @@ function subscribe(callback: () => void) {
 }
 
 export default function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribe, getTheme, () => "dark");
+  const theme = useSyncExternalStore(subscribe, getTheme, () => "light");
 
   // Keep the DOM attribute in sync
   if (typeof document !== "undefined") {

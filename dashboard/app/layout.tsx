@@ -31,6 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="light"
       className={`${dmSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" style={{ backgroundColor: 'var(--st-bg)', color: 'var(--st-txt)' }}>
