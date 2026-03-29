@@ -64,7 +64,7 @@ export default function PnlTimeline({
         24 hours
       </p>
       <div className="h-56 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <LineChart
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}

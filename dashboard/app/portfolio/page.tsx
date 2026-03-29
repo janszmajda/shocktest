@@ -377,7 +377,7 @@ export default function PortfolioPage() {
                   Combined Payoff Graph
                 </h3>
                 <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <LineChart
                       data={combinedPayoffByOutcome}
                       margin={{ top: 5, right: 20, left: 10, bottom: 20 }}

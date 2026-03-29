@@ -45,13 +45,13 @@ function computePnl(
 }
 
 function pnlColor(pnl: number, maxAbs: number): string {
-  if (maxAbs === 0) return "rgb(255, 255, 255)";
+  if (maxAbs === 0) return "transparent";
   const ratio = Math.min(Math.abs(pnl) / maxAbs, 1);
-  const intensity = Math.round(ratio * 200);
+  const alpha = (ratio * 0.6).toFixed(2);
 
-  if (pnl > 0) return `rgb(${255 - intensity}, 255, ${255 - intensity})`;
-  if (pnl < 0) return `rgb(255, ${255 - intensity}, ${255 - intensity})`;
-  return "rgb(255, 255, 255)";
+  if (pnl > 0) return `rgba(34, 199, 138, ${alpha})`;
+  if (pnl < 0) return `rgba(240, 92, 92, ${alpha})`;
+  return "transparent";
 }
 
 export default function PnlHeatmap({
@@ -83,11 +83,11 @@ export default function PnlHeatmap({
   }, [entryPrice, positionSize, direction]);
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h4 className="text-lg font-semibold text-gray-900">
+    <div className="rounded-lg border border-border bg-surface-1 p-6">
+      <h4 className="text-lg font-semibold text-text-primary">
         P&L Heatmap — Probability vs. Time to Resolution
       </h4>
-      <p className="mb-4 text-xs text-gray-500">
+      <p className="mb-4 text-xs text-text-muted">
         {direction === "buy_no" ? "Buy NO" : "Buy YES"} at{" "}
         {(entryPrice * 100).toFixed(0)}% with ${positionSize} — green = profit,
         red = loss
@@ -102,13 +102,13 @@ export default function PnlHeatmap({
               gridTemplateColumns: `64px repeat(${PROB_STEPS.length}, minmax(36px, 1fr))`,
             }}
           >
-            <div className="p-1 text-right text-[10px] font-medium text-gray-400">
+            <div className="p-1 text-right text-[10px] font-medium text-text-muted">
               Days \ Prob
             </div>
             {PROB_STEPS.map((prob) => (
               <div
                 key={prob}
-                className="p-1 text-center text-[10px] font-medium text-gray-500"
+                className="p-1 text-center text-[10px] font-medium text-text-muted"
               >
                 {prob}%
               </div>
@@ -124,7 +124,7 @@ export default function PnlHeatmap({
                 gridTemplateColumns: `64px repeat(${PROB_STEPS.length}, minmax(36px, 1fr))`,
               }}
             >
-              <div className="flex items-center justify-end p-1 text-[10px] font-medium text-gray-500">
+              <div className="flex items-center justify-end p-1 text-[10px] font-medium text-text-muted">
                 {days}d
               </div>
               {PROB_STEPS.map((prob, colIdx) => {
@@ -138,8 +138,8 @@ export default function PnlHeatmap({
                     key={prob}
                     className={`cursor-crosshair border p-1 text-center text-[9px] ${
                       isHovered
-                        ? "border-blue-500 ring-1 ring-blue-400"
-                        : "border-gray-100"
+                        ? "border-accent ring-1 ring-accent"
+                        : "border-border"
                     }`}
                     style={{ backgroundColor: pnlColor(pnl, maxAbs) }}
                     onMouseEnter={() => setHovered({ prob, days, pnl })}
@@ -148,10 +148,10 @@ export default function PnlHeatmap({
                     <span
                       className={
                         pnl > 0
-                          ? "text-green-900"
+                          ? "text-yes-text"
                           : pnl < 0
-                            ? "text-red-900"
-                            : "text-gray-400"
+                            ? "text-no-text"
+                            : "text-text-muted"
                       }
                     >
                       {Math.abs(pnl) >= 0.5
@@ -170,31 +170,31 @@ export default function PnlHeatmap({
       <div
         className={`mt-3 rounded-md border px-3 py-2 text-sm transition-opacity ${
           hovered ? "opacity-100" : "opacity-0"
-        } border-gray-200 bg-gray-50`}
+        } border-border bg-surface-2`}
       >
         {hovered ? (
           <>
-            <span className="text-gray-500">Probability: </span>
-            <span className="font-medium">{hovered.prob}%</span>
-            <span className="mx-2 text-gray-300">|</span>
-            <span className="text-gray-500">Days: </span>
-            <span className="font-medium">{hovered.days}</span>
-            <span className="mx-2 text-gray-300">|</span>
-            <span className="text-gray-500">P&L: </span>
+            <span className="text-text-muted">Probability: </span>
+            <span className="font-medium text-text-primary">{hovered.prob}%</span>
+            <span className="mx-2 text-text-muted">|</span>
+            <span className="text-text-muted">Days: </span>
+            <span className="font-medium text-text-primary">{hovered.days}</span>
+            <span className="mx-2 text-text-muted">|</span>
+            <span className="text-text-muted">P&L: </span>
             <span
               className={`font-semibold ${
                 hovered.pnl > 0
-                  ? "text-green-600"
+                  ? "text-yes-text"
                   : hovered.pnl < 0
-                    ? "text-red-600"
-                    : "text-gray-600"
+                    ? "text-no-text"
+                    : "text-text-muted"
               }`}
             >
               {hovered.pnl >= 0 ? "+" : ""}${hovered.pnl.toFixed(2)}
             </span>
           </>
         ) : (
-          <span className="text-gray-400">Hover over a cell to see details</span>
+          <span className="text-text-muted">Hover over a cell to see details</span>
         )}
       </div>
     </div>
