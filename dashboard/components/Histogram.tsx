@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -62,8 +63,21 @@ function computeMeanReversion(shocks: Shock[]): number | null {
 }
 
 export default function Histogram({ shocks }: HistogramProps) {
-  const bins = buildBins(shocks);
-  const meanReversion = computeMeanReversion(shocks);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const categories = useMemo(() => {
+    return Array.from(
+      new Set(shocks.map((s) => s.category).filter(Boolean)),
+    ) as string[];
+  }, [shocks]);
+
+  const filtered = useMemo(() => {
+    if (categoryFilter === "all") return shocks;
+    return shocks.filter((s) => s.category === categoryFilter);
+  }, [shocks, categoryFilter]);
+
+  const bins = buildBins(filtered);
+  const meanReversion = computeMeanReversion(filtered);
 
   const zeroBinIndex = bins.findIndex((b) => b.label === "0 to 2");
   const zeroLabel = zeroBinIndex >= 0 ? bins[zeroBinIndex].label : undefined;
@@ -73,81 +87,116 @@ export default function Histogram({ shocks }: HistogramProps) {
       <h2 className="mb-3 text-sm font-semibold text-text-primary">
         Post-Shock Reversion Distribution (6h)
       </h2>
-      <div className="h-72 w-full rounded-lg border border-border bg-surface-1 p-4">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <BarChart
-            data={bins}
-            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: "#55555f" }}
-              stroke="#55555f"
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#55555f" }}
-              stroke="#55555f"
-              allowDecimals={false}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "#1a1a1f",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: "8px",
-                color: "#e8e8ed",
-                fontSize: "12px",
-              }}
-            />
-            {zeroLabel && (
-              <ReferenceLine
-                x={zeroLabel}
+      <div className="rounded-lg border border-border bg-surface-1 p-4">
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <BarChart
+              data={bins}
+              margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+              style={{ cursor: "default" }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: "#55555f" }}
                 stroke="#55555f"
-                strokeWidth={1.5}
-                label={{
-                  value: "0",
-                  position: "top",
-                  style: { fontSize: 10, fill: "#55555f" },
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#55555f" }}
+                stroke="#55555f"
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#1a1a1f",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: "8px",
+                  color: "#e8e8ed",
+                  fontSize: "12px",
                 }}
               />
-            )}
-            {meanReversion !== null && (
-              <ReferenceLine
-                x={
-                  bins.reduce((closest, bin) =>
-                    Math.abs(bin.midpoint - meanReversion) <
-                    Math.abs(closest.midpoint - meanReversion)
-                      ? bin
-                      : closest,
-                  ).label
-                }
-                stroke="#5b8def"
-                strokeDasharray="6 3"
-                strokeWidth={2}
-                label={{
-                  value: `Mean: ${meanReversion.toFixed(1)}pp`,
-                  position: "top",
-                  style: { fontSize: 10, fill: "#5b8def" },
-                }}
-              />
-            )}
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {bins.map((bin, idx) => (
-                <Cell
-                  key={idx}
-                  fill={bin.isReversion ? "#22c78a" : "#f05c5c"}
-                  fillOpacity={0.8}
+              {zeroLabel && (
+                <ReferenceLine
+                  x={zeroLabel}
+                  stroke="#55555f"
+                  strokeWidth={1.5}
+                  label={{
+                    value: "0",
+                    position: "top",
+                    style: { fontSize: 10, fill: "#55555f" },
+                  }}
                 />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+              )}
+              {meanReversion !== null && (
+                <ReferenceLine
+                  x={
+                    bins.reduce((closest, bin) =>
+                      Math.abs(bin.midpoint - meanReversion) <
+                      Math.abs(closest.midpoint - meanReversion)
+                        ? bin
+                        : closest,
+                    ).label
+                  }
+                  stroke="#5b8def"
+                  strokeDasharray="6 3"
+                  strokeWidth={2}
+                  label={{
+                    value: `Mean: ${meanReversion.toFixed(1)}pp`,
+                    position: "top",
+                    style: { fontSize: 10, fill: "#5b8def" },
+                  }}
+                />
+              )}
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                {bins.map((bin, idx) => (
+                  <Cell
+                    key={idx}
+                    fill={bin.isReversion ? "#22c78a" : "#f05c5c"}
+                    fillOpacity={0.8}
+                    style={{ cursor: "default" }}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Legend — inside the box */}
+        <p className="mt-2 text-center text-xs text-text-muted">
+          <span className="text-yes-text">Green</span> = reversion &middot;{" "}
+          <span className="text-no-text">Red</span> = continuation &middot;{" "}
+          <span style={{ color: "#5b8def" }}>Dashed</span> = mean
+        </p>
+
+        {/* Category filter */}
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setCategoryFilter("all")}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
+                categoryFilter === "all"
+                  ? "bg-surface-2 text-text-primary"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium capitalize transition-all ${
+                  categoryFilter === cat
+                    ? "bg-surface-2 text-text-primary"
+                    : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <p className="mt-2 text-center text-xs text-text-muted">
-        <span className="text-yes-text">Green</span> = reversion &middot;{" "}
-        <span className="text-no-text">Red</span> = continuation &middot;{" "}
-        <span className="text-accent">Dashed</span> = mean
-      </p>
     </div>
   );
 }

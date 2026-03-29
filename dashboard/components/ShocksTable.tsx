@@ -214,13 +214,16 @@ export default function ShocksTable({
               <button
                 key={opt.key}
                 onClick={() => handleSort(opt.key)}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
                   sortBy === opt.key
                     ? "bg-surface-3 text-text-primary"
                     : "text-text-muted hover:text-text-secondary"
                 }`}
               >
                 {opt.label}
+                {sortBy === opt.key && (
+                  <span className="text-[9px]">{sortDir === "desc" ? "▼" : "▲"}</span>
+                )}
               </button>
             ))}
           </div>
