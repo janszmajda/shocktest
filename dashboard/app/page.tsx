@@ -672,7 +672,7 @@ export default function Home() {
   }
 
   return (
-    <>
+    <div className={noShocks ? "flex min-h-screen flex-col" : ""}>
       {/* ── SECTION 1: Sticky Nav ── */}
       <nav className="sticky top-0 z-50 bg-surface-base" style={{ borderBottom: "2px solid var(--st-accent)" }}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
@@ -688,9 +688,9 @@ export default function Home() {
         </div>
       </nav>
 
-      <main>
-        {/* ── Featured Shocks Carousel (always visible) ── */}
-        <section className="mx-auto max-w-7xl overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
+      <main className={noShocks ? "flex flex-1 flex-col" : ""}>
+        {/* ── Featured Shocks Carousel ── */}
+        <section className={`mx-auto max-w-7xl overflow-hidden px-4 py-12 sm:px-6 lg:px-8${noShocks ? " hidden" : ""}`}>
           <CardCarousel>
             {featuredShocks.map((shock) => (
               <ShockCard
@@ -708,7 +708,7 @@ export default function Home() {
 
         {/* ── Empty state when no shocks in the last hour ── */}
         {noShocks ? (
-          <section className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
+          <section className="mx-auto flex flex-1 max-w-7xl items-center justify-center px-4 text-center sm:px-6 lg:px-8">
             <div className="mx-auto max-w-md">
               <CountdownRing durationMs={120000} />
               <p className="text-sm text-text-secondary">
@@ -858,6 +858,6 @@ export default function Home() {
       </main>
 
       <Footer />
-    </>
+    </div>
   );
 }
