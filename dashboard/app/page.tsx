@@ -735,7 +735,7 @@ export default function Home() {
         ) : (
           <>
             {/* ── SECTION 3: Explainer Text ── */}
-            <section className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6 lg:px-8">
+            <section className="mx-auto max-w-7xl px-4 pb-12 pt-4 text-center sm:px-6 lg:px-8">
               <h2 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
                 Detect the <RotatingWord />.{" "}
                 Size the trade.

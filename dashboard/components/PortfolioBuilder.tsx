@@ -10,7 +10,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
   Area,
-  AreaChart,
+  ComposedChart,
 } from "recharts";
 import { Shock, SimilarStatsResponse } from "@/lib/types";
 
@@ -30,7 +30,7 @@ interface PortfolioBuilderProps {
   allShocks: Shock[];
 }
 
-const POSITION_COLORS = ["#F26522", "#7c3aed", "#0891b2", "#c026d3"];
+const POSITION_COLORS = ["#F26522", "#2563eb", "#e11d9a", "#06b6d4"];
 const QUICK_SIZES = [50, 100, 250, 500];
 
 export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
@@ -253,7 +253,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
         setSelected((prev) => {
           const aiIds = new Set(aiPicks.map((p) => p.market_id));
           const kept = prev.filter((s) => !aiIds.has(s.market_id));
-          return [...kept, ...aiPicks].slice(0, 8);
+          return [...kept, ...aiPicks].slice(0, 4);
         });
       }
     } catch (e) {
@@ -620,25 +620,6 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
             )}
           </div>
 
-          {/* Correlation warning */}
-          {correlationWarnings.length > 0 && (
-            <div className="rounded-lg border-l-4 border-accent bg-surface-2 px-4 py-3">
-              <p className="text-xs font-semibold text-text-primary">
-                Portfolio Correlation Warning
-              </p>
-              <p className="mt-1 text-xs text-text-secondary">
-                {correlationWarnings.map((w, i) => (
-                  <span key={w.category}>
-                    {i > 0 && ", "}
-                    {w.count} positions in &ldquo;{w.category}&rdquo;
-                  </span>
-                ))}{" "}
-                may be correlated. Diversification benefit assumes independent
-                outcomes.
-              </p>
-            </div>
-          )}
-
           {/* Portfolio stats */}
           {portfolioStats && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -723,7 +704,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <AreaChart
+                  <ComposedChart
                     data={combinedPayoffByOutcome}
                     margin={{ top: 5, right: 10, left: 10, bottom: 20 }}
                   >
@@ -799,10 +780,10 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                         type="monotone"
                         dataKey={`shock_${i}`}
                         stroke={POSITION_COLORS[i]}
-                        strokeWidth={1.5}
+                        strokeWidth={2}
                         dot={false}
-                        strokeDasharray="4 2"
-                        strokeOpacity={0.5}
+                        strokeDasharray="6 3"
+                        strokeOpacity={0.8}
                         name={s.question.substring(0, 20) + "..."}
                       />
                     ))}
@@ -815,7 +796,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                       dot={false}
                       name="Portfolio"
                     />
-                  </AreaChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
