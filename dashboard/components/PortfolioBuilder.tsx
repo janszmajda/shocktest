@@ -323,7 +323,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* LEFT PANEL — Market selector */}
         <div className="lg:col-span-5">
-          <div className="rounded-xl border border-border bg-surface-1">
+          <div className="overflow-hidden rounded-xl border border-border bg-surface-1">
             <div className="border-b border-border px-4 py-3">
               <h2 className="text-sm font-semibold text-text-primary">
                 Markets
@@ -568,7 +568,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                               </span>
                             )}
                             {sampleSize != null && sampleSize < 10 && (
-                              <span className="text-[10px] font-medium text-amber-500">
+                              <span className="text-[10px] font-medium text-accent">
                                 Small sample
                               </span>
                             )}
@@ -627,7 +627,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
 
           {/* Correlation warning */}
           {correlationWarnings.length > 0 && (
-            <div className="rounded-lg border-l-4 border-amber-400 bg-surface-2 px-4 py-3">
+            <div className="rounded-lg border-l-4 border-accent bg-surface-2 px-4 py-3">
               <p className="text-xs font-semibold text-text-primary">
                 Portfolio Correlation Warning
               </p>

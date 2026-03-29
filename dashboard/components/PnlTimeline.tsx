@@ -72,25 +72,25 @@ export default function PnlTimeline({
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: "#55555f" }}
-              stroke="#55555f"
+              tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
               label={{
                 value: "Hours After Shock",
                 position: "bottom",
                 offset: 0,
-                style: { fontSize: 11, fill: "#55555f" },
+                style: { fontSize: 11, fill: "var(--st-muted)" },
               }}
             />
             <YAxis
               tickFormatter={(v: number) => `$${v}`}
-              tick={{ fontSize: 10, fill: "#55555f" }}
-              stroke="#55555f"
+              tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
             />
             <Tooltip
               contentStyle={{ background: "#1a1a1f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "8px", color: "#e8e8ed", fontSize: "12px" }}
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
             />
-            <ReferenceLine y={0} stroke="#55555f" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="var(--st-muted)" strokeDasharray="3 3" />
             <Line
               type="monotone"
               dataKey="pnl"

@@ -73,24 +73,24 @@ export default function PayoffCurve({
             <XAxis
               dataKey="probability"
               tickFormatter={(v: number) => `${v}%`}
-              tick={{ fontSize: 10, fill: "#55555f" }}
-              stroke="#55555f"
+              tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
               label={{
                 value: "Resolution Probability (%)",
                 position: "bottom",
                 offset: 0,
-                style: { fontSize: 11, fill: "#55555f" },
+                style: { fontSize: 11, fill: "var(--st-muted)" },
               }}
             />
             <YAxis
               tickFormatter={(v: number) => `$${v}`}
-              tick={{ fontSize: 10, fill: "#55555f" }}
-              stroke="#55555f"
+              tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
               label={{
                 value: "P&L ($)",
                 angle: -90,
                 position: "insideLeft",
-                style: { fontSize: 11, fill: "#55555f" },
+                style: { fontSize: 11, fill: "var(--st-muted)" },
               }}
             />
             <Tooltip
@@ -98,7 +98,7 @@ export default function PayoffCurve({
               formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
               labelFormatter={(label) => `${label}%`}
             />
-            <ReferenceLine y={0} stroke="#55555f" strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="var(--st-muted)" strokeDasharray="3 3" />
             <ReferenceLine
               x={Math.round(currentPrice * 100)}
               stroke="#F26522"

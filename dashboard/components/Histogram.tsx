@@ -105,12 +105,12 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: "#55555f" }}
-                stroke="#55555f"
+                tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+                stroke="var(--st-muted)"
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "#55555f" }}
-                stroke="#55555f"
+                tick={{ fontSize: 11, fill: "var(--st-muted)" }}
+                stroke="var(--st-muted)"
                 allowDecimals={false}
               />
               <Tooltip
@@ -125,12 +125,12 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
               {zeroLabel && (
                 <ReferenceLine
                   x={zeroLabel}
-                  stroke="#55555f"
+                  stroke="var(--st-muted)"
                   strokeWidth={1.5}
                   label={{
                     value: "0",
                     position: "top",
-                    style: { fontSize: 10, fill: "#55555f" },
+                    style: { fontSize: 10, fill: "var(--st-muted)" },
                   }}
                 />
               )}

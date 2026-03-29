@@ -22,22 +22,22 @@
 }
 
 [data-theme="light"] {
-  --st-bg: #FFFFFF;
-  --st-s1: #FFFFFF;
-  --st-s2: #fafafa;
-  --st-s3: #f0f0f0;
-  --st-border: #e5e5e5;
-  --st-border-h: #d0d0d0;
+  --st-bg: #FAFAF5;
+  --st-s1: #FAFAF5;
+  --st-s2: #F4F4EF;
+  --st-s3: #EDEDEA;
+  --st-border: #CACACA;
+  --st-border-h: #B0B0B0;
   --st-txt: #2D2D2D;
-  --st-txt2: #555555;
-  --st-muted: #999999;
+  --st-txt2: #3A3A3A;
+  --st-muted: #CACACA;
   --st-yes: #16a34a;
   --st-yes-dim: rgba(22, 163, 74, 0.08);
   --st-no: #dc2626;
   --st-no-dim: rgba(220, 38, 38, 0.08);
   --st-accent: #F26522;
   --st-accent-dim: rgba(242, 101, 34, 0.08);
-  --st-grid: #f0f0f0;
+  --st-grid: #EDEDEA;
 }
 
 /* ── Body base styles ── */

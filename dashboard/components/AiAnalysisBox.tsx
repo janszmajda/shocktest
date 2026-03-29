@@ -11,9 +11,9 @@ interface AiAnalysisBoxProps {
 }
 
 const CONFIDENCE_STYLES = {
-  high: { bg: "bg-green-100", text: "text-green-800", border: "border-green-300" },
-  medium: { bg: "bg-yellow-100", text: "text-yellow-800", border: "border-yellow-300" },
-  low: { bg: "bg-red-100", text: "text-red-800", border: "border-red-300" },
+  high: { bg: "bg-yes-dim", text: "text-yes-text", border: "border-border" },
+  medium: { bg: "bg-accent-dim", text: "text-accent", border: "border-border" },
+  low: { bg: "bg-no-dim", text: "text-no-text", border: "border-border" },
 } as const;
 
 export default function AiAnalysisBox({ analysis }: AiAnalysisBoxProps) {

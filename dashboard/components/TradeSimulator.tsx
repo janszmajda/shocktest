@@ -112,7 +112,7 @@ export default function TradeSimulator({
           {shockCategory ? `, ${shockCategory}` : ""})
         </p>
         {filterLevel && filterLevel !== "tight" && (
-          <p className="mt-1 text-xs text-amber-600">
+          <p className="mt-1 text-xs text-accent">
             {filterLevel === "category"
               ? "Not enough similar shocks — widened to all same-category shocks"
               : "Not enough similar shocks — using all historical data"}
@@ -140,7 +140,7 @@ export default function TradeSimulator({
       </div>
 
       {!distribution ? (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center text-sm text-yellow-700">
+        <div className="rounded-lg border border-border bg-accent-dim p-4 text-center text-sm text-accent">
           No distribution data available for {horizon} horizon yet.
         </div>
       ) : (
@@ -178,27 +178,27 @@ export default function TradeSimulator({
                   data={histogramData}
                   margin={{ top: 5, right: 20, left: 10, bottom: 20 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--st-grid)" />
                   <XAxis
                     dataKey="bin"
-                    tick={{ fontSize: 10, fill: "#55555f" }}
-                    stroke="#55555f"
+                    tick={{ fontSize: 10, fill: "var(--st-muted)" }}
+                    stroke="var(--st-muted)"
                     label={{
                       value: "Reversion (%)",
                       position: "bottom",
                       offset: 0,
-                      style: { fontSize: 11, fill: "#55555f" },
+                      style: { fontSize: 11, fill: "var(--st-muted)" },
                     }}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#55555f" }}
-                    stroke="#55555f"
+                    tick={{ fontSize: 11, fill: "var(--st-muted)" }}
+                    stroke="var(--st-muted)"
                     allowDecimals={false}
                     label={{
                       value: "Count",
                       angle: -90,
                       position: "insideLeft",
-                      style: { fontSize: 11, fill: "#55555f" },
+                      style: { fontSize: 11, fill: "var(--st-muted)" },
                     }}
                   />
                   <Tooltip
@@ -210,12 +210,12 @@ export default function TradeSimulator({
                   />
                   <ReferenceLine
                     x="0.0"
-                    stroke="#55555f"
+                    stroke="var(--st-muted)"
                     strokeDasharray="3 3"
                     label={{
                       value: "Break Even",
                       position: "top",
-                      style: { fontSize: 10, fill: "#55555f" },
+                      style: { fontSize: 10, fill: "var(--st-muted)" },
                     }}
                   />
                   <Bar dataKey="count" radius={[3, 3, 0, 0]}>

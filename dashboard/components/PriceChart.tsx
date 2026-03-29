@@ -186,14 +186,14 @@ export default function PriceChart({
             <XAxis
               dataKey="t"
               tickFormatter={formatTime}
-              tick={{ fontSize: 11, fill: "#8b8b9a" }}
-              stroke="#55555f"
+              tick={{ fontSize: 11, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
             />
             <YAxis
               domain={[0, 100]}
               tickFormatter={(v: number) => `${v}%`}
-              tick={{ fontSize: 11, fill: "#8b8b9a" }}
-              stroke="#55555f"
+              tick={{ fontSize: 11, fill: "var(--st-muted)" }}
+              stroke="var(--st-muted)"
             />
             <Tooltip
               contentStyle={{
