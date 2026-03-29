@@ -27,6 +27,137 @@ const EMPTY_STATS: AggregateStats = {
 };
 import { cachedFetch, invalidate } from "@/lib/fetchCache";
 
+/* ── Demo data (set NEXT_PUBLIC_DEMO=1 in .env.local to enable) ── */
+const DEMO = process.env.NEXT_PUBLIC_DEMO === "1";
+
+const DEMO_SHOCKS: Shock[] = DEMO
+  ? [
+      {
+        _id: "demo-1",
+        market_id: "demo-mkt-1",
+        source: "polymarket",
+        question: "Will the US announce new tariffs on EU goods by April 2026?",
+        category: "Politics",
+        t1: new Date(Date.now() - 3600_000).toISOString(),
+        t2: new Date(Date.now() - 1800_000).toISOString(),
+        p_before: 0.35,
+        p_after: 0.62,
+        delta: 0.27,
+        abs_delta: 0.27,
+        post_move_1h: -0.05,
+        post_move_6h: -0.08,
+        post_move_24h: null,
+        reversion_1h: 0.19,
+        reversion_6h: 0.30,
+        reversion_24h: null,
+        is_live_alert: true,
+        is_recent: true,
+        hours_ago: 0.5,
+        detected_at: new Date(Date.now() - 1800_000).toISOString(),
+        fade_pnl_1h: 0.05,
+        fade_pnl_6h: 0.08,
+        fade_pnl_24h: null,
+        historical_win_rate: 0.64,
+        historical_avg_pnl: 0.03,
+        historical_sample_size: 28,
+        ai_analysis: {
+          likely_cause: "Breaking news: EU trade delegation cancelled",
+          overreaction_assessment: "Market likely overreacted to preliminary reports",
+          reversion_confidence: "medium",
+        },
+      },
+      {
+        _id: "demo-2",
+        market_id: "demo-mkt-2",
+        source: "polymarket",
+        question: "Will Bitcoin exceed $150k by end of Q2 2026?",
+        category: "Crypto",
+        t1: new Date(Date.now() - 7200_000).toISOString(),
+        t2: new Date(Date.now() - 5400_000).toISOString(),
+        p_before: 0.22,
+        p_after: 0.41,
+        delta: 0.19,
+        abs_delta: 0.19,
+        post_move_1h: -0.03,
+        post_move_6h: -0.07,
+        post_move_24h: null,
+        reversion_1h: 0.16,
+        reversion_6h: 0.37,
+        reversion_24h: null,
+        is_live_alert: true,
+        is_recent: true,
+        hours_ago: 1.5,
+        detected_at: new Date(Date.now() - 5400_000).toISOString(),
+        fade_pnl_1h: 0.03,
+        fade_pnl_6h: 0.07,
+        fade_pnl_24h: null,
+        historical_win_rate: 0.58,
+        historical_avg_pnl: 0.02,
+        historical_sample_size: 15,
+        ai_analysis: {
+          likely_cause: "Whale accumulation rumor on crypto Twitter",
+          overreaction_assessment: "Speculative move with low information content",
+          reversion_confidence: "high",
+        },
+      },
+      {
+        _id: "demo-3",
+        market_id: "demo-mkt-3",
+        source: "polymarket",
+        question: "Will the Fed cut rates at the June 2026 meeting?",
+        category: "Economics",
+        t1: new Date(Date.now() - 1200_000).toISOString(),
+        t2: new Date(Date.now() - 600_000).toISOString(),
+        p_before: 0.71,
+        p_after: 0.48,
+        delta: -0.23,
+        abs_delta: 0.23,
+        post_move_1h: 0.04,
+        post_move_6h: null,
+        post_move_24h: null,
+        reversion_1h: 0.17,
+        reversion_6h: null,
+        reversion_24h: null,
+        is_live_alert: true,
+        is_recent: true,
+        hours_ago: 0.17,
+        detected_at: new Date(Date.now() - 600_000).toISOString(),
+        fade_pnl_1h: 0.04,
+        fade_pnl_6h: null,
+        fade_pnl_24h: null,
+        historical_win_rate: 0.71,
+        historical_avg_pnl: 0.05,
+        historical_sample_size: 42,
+        ai_analysis: {
+          likely_cause: "Surprise jobs report beat expectations",
+          overreaction_assessment: "Single data point unlikely to shift Fed stance",
+          reversion_confidence: "high",
+        },
+      },
+    ]
+  : [];
+
+const DEMO_STATS: AggregateStats = {
+  _id: "aggregate_stats",
+  total_shocks: 347,
+  total_markets: 1293,
+  reversion_rate_1h: 0.62,
+  reversion_rate_6h: 0.58,
+  reversion_rate_24h: 0.54,
+  mean_reversion_1h: 0.18,
+  mean_reversion_6h: 0.30,
+  mean_reversion_24h: 0.25,
+  std_reversion_6h: 0.12,
+  sample_size_1h: 312,
+  sample_size_6h: 289,
+  sample_size_24h: 245,
+  by_category: {
+    Politics: { count: 98, reversion_rate_6h: 0.61, mean_reversion_6h: 0.32, sample_size_6h: 85 },
+    Crypto: { count: 72, reversion_rate_6h: 0.55, mean_reversion_6h: 0.28, sample_size_6h: 64 },
+    Economics: { count: 54, reversion_rate_6h: 0.63, mean_reversion_6h: 0.35, sample_size_6h: 48 },
+  },
+};
+
 /* ── Helpers ── */
 
 const ROTATING_WORDS = ["panic", "shock", "spike", "outlier"];
@@ -493,6 +624,12 @@ export default function Home() {
 
   /* Data fetching — every 120s (matches live_monitor poll cycle) */
   const fetchData = useCallback(() => {
+    if (DEMO) {
+      setAllShocks(DEMO_SHOCKS);
+      setStats(DEMO_STATS);
+      setLoading(false);
+      return;
+    }
     // Invalidate cache so we get fresh data each poll
     invalidate("/api/shocks");
     Promise.all([
