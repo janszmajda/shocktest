@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import { DUMMY_SHOCKS, DUMMY_PRICE_SERIES } from "@/lib/dummyData";
 
 export const dynamic = "force-dynamic";
+
+function buildDummyMiniSeries(ids: string[]) {
+  const dummyIds = new Set(DUMMY_SHOCKS.map((s) => s.market_id));
+  const result: Record<
+    string,
+    { series: { t: number; p: number }[]; close_time: number | null; image_url: string | null }
+  > = {};
+  for (const id of ids) {
+    if (dummyIds.has(id)) {
+      const sliceStart = Math.max(0, DUMMY_PRICE_SERIES.length - 40);
+      result[id] = {
+        series: DUMMY_PRICE_SERIES.slice(sliceStart),
+        close_time: null,
+        image_url: null,
+      };
+    }
+  }
+  return result;
+}
 
 /**
  * GET /api/markets/mini-series?ids=id1,id2,...
@@ -49,13 +69,20 @@ export async function GET(request: Request) {
       };
     }
 
+    // Fill in dummy data for any requested IDs not found in DB
+    const missingIds = ids.filter((id) => !result[id]);
+    if (missingIds.length > 0) {
+      const dummyResult = buildDummyMiniSeries(missingIds);
+      Object.assign(result, dummyResult);
+    }
+
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
     });
   } catch {
-    return NextResponse.json(
-      { error: "Failed to fetch mini series" },
-      { status: 500 },
-    );
+    // DB connection failed — serve dummy mini series
+    const { searchParams } = new URL(request.url);
+    const ids = (searchParams.get("ids") ?? "").split(",").filter(Boolean).slice(0, 50);
+    return NextResponse.json(buildDummyMiniSeries(ids));
   }
 }
