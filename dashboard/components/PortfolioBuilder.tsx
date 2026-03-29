@@ -30,7 +30,16 @@ interface PortfolioBuilderProps {
   allShocks: Shock[];
 }
 
-const POSITION_COLORS = ["#F26522", "#2563eb", "#e11d9a", "#06b6d4"];
+function AnimatedDots() {
+  const [count, setCount] = useState(1);
+  useEffect(() => {
+    const interval = setInterval(() => setCount((c) => (c % 3) + 1), 500);
+    return () => clearInterval(interval);
+  }, []);
+  return <span>{".".repeat(count)}</span>;
+}
+
+const POSITION_COLORS =["#F26522", "#2563eb", "#e11d9a", "#06b6d4"];
 const QUICK_SIZES = [50, 100, 250, 500];
 
 export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
@@ -214,7 +223,19 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
       const res = await fetch("/api/portfolio-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bankroll: totalBudget }),
+        body: JSON.stringify({
+          bankroll: totalBudget,
+          shocks: allShocks.map((s) => ({
+            shock_id: s._id,
+            market_id: s.market_id,
+            question: s.question,
+            category: s.category,
+            delta: s.delta,
+            abs_delta: s.abs_delta,
+            p_after: s.p_after,
+            p_before: s.p_before,
+          })),
+        }),
       });
       const data = (await res.json()) as {
         report?: string;
@@ -270,43 +291,30 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-text-primary">
-              AI Portfolio Builder
+              Portfolio Builder
             </h3>
             <p className="mt-0.5 text-xs text-text-muted">
-              Claude searches the web, picks the best fades, and sizes with
-              half-Kelly.
+              K2-Think picks the best fades and sizes with half-Kelly.
             </p>
           </div>
           <button
             onClick={buildWithAgent}
             disabled={agentLoading}
-            className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            className="w-28 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            {agentLoading ? "Building..." : "Build with AI"}
+            {agentLoading ? <>Building<AnimatedDots /></> : agentReport ? "Regenerate" : "Build with AI"}
           </button>
         </div>
         {agentLoading && (
           <div className="mt-3 flex items-center gap-2 text-xs text-text-muted">
-            <svg
-              className="h-3.5 w-3.5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v8H4z"
-              />
-            </svg>
-            Searching the web and building portfolio...
+            <div
+              className="h-3.5 w-3.5 animate-spin rounded-full"
+              style={{
+                border: "2px solid var(--st-border)",
+                borderTopColor: "var(--st-accent)",
+              }}
+            />
+            Analyzing shocks and building portfolio<AnimatedDots />
           </div>
         )}
         {agentError && (
@@ -782,9 +790,11 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                         stroke={POSITION_COLORS[i]}
                         strokeWidth={2}
                         dot={false}
+                        activeDot={false}
                         strokeDasharray="6 3"
                         strokeOpacity={0.8}
                         name={s.question.substring(0, 20) + "..."}
+                        style={{ pointerEvents: "none" }}
                       />
                     ))}
                     <Area
@@ -794,7 +804,9 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
                       strokeWidth={2.5}
                       fill="url(#portfolioGrad)"
                       dot={false}
+                      activeDot={false}
                       name="Portfolio"
+                      style={{ pointerEvents: "none" }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>

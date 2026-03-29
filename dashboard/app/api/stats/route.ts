@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
-import { DUMMY_STATS } from "@/lib/dummyData";
 
 export const dynamic = "force-dynamic";
+
+const EMPTY_STATS = {
+  _id: "aggregate_stats",
+  total_shocks: 0,
+  total_markets: 0,
+  reversion_rate_1h: null,
+  reversion_rate_6h: null,
+  reversion_rate_24h: null,
+  mean_reversion_6h: null,
+  sample_size_6h: 0,
+  by_category: {},
+};
 
 export async function GET() {
   try {
@@ -16,21 +27,13 @@ export async function GET() {
       db.collection("market_series").countDocuments(),
     ]);
 
-    if (!stats || (stats.total_shocks === 0 && liveMarketCount === 0)) {
-      return NextResponse.json(DUMMY_STATS, {
-        headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
-      });
-    }
-
-    const result = stats;
-    // Use live count from market_series (actual tracked markets)
+    const result = stats ?? EMPTY_STATS;
     result.total_markets = liveMarketCount;
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
     });
   } catch {
-    // DB connection failed — serve dummy stats
-    return NextResponse.json(DUMMY_STATS, {
+    return NextResponse.json(EMPTY_STATS, {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
     });
   }

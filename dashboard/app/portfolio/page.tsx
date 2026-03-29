@@ -344,7 +344,7 @@ export default function PortfolioPage() {
     <>
       <Header />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* AI Portfolio Builder */}
+        {/* Portfolio Builder */}
         <div className="mb-6 rounded-xl border border-border bg-surface-1 p-5">
           <div className="flex items-center justify-between">
             <div>

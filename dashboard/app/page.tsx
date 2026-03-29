@@ -7,8 +7,24 @@ import PortfolioBuilder from "@/components/PortfolioBuilder";
 import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import Footer from "@/components/Footer";
-import { DUMMY_STATS, DUMMY_SHOCKS } from "@/lib/dummyData";
 import { Shock, AggregateStats, PricePoint } from "@/lib/types";
+
+const EMPTY_STATS: AggregateStats = {
+  _id: "aggregate_stats",
+  total_shocks: 0,
+  total_markets: 0,
+  reversion_rate_1h: null,
+  reversion_rate_6h: null,
+  reversion_rate_24h: null,
+  mean_reversion_1h: null,
+  mean_reversion_6h: null,
+  mean_reversion_24h: null,
+  std_reversion_6h: null,
+  sample_size_1h: 0,
+  sample_size_6h: 0,
+  sample_size_24h: 0,
+  by_category: {},
+};
 import { cachedFetch, invalidate } from "@/lib/fetchCache";
 
 /* ── Helpers ── */
@@ -256,11 +272,6 @@ function ShockCard({
       {/* Top row: badges + time ago */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          {isLive && shock.is_live_alert && (
-            <span className="inline-flex items-center rounded-full bg-no-dim px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-no-text">
-              Live
-            </span>
-          )}
           {shock.category && catColor && (
             <span
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
@@ -428,9 +439,8 @@ function CountdownRing({ durationMs }: { durationMs: number }) {
 export default function Home() {
   /* === Shared state === */
   const [allShocks, setAllShocks] = useState<Shock[]>([]);
-  const [stats, setStats] = useState<AggregateStats>(DUMMY_STATS);
+  const [stats, setStats] = useState<AggregateStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
-  const [usingDummy, setUsingDummy] = useState(false);
   const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
   const [closeTimeMap, setCloseTimeMap] = useState<
     Record<string, number | null>
@@ -501,8 +511,7 @@ export default function Home() {
           return false;
         })
         .catch(() => false),
-    ]).then(([shocksOk, statsOk]) => {
-      setUsingDummy(!shocksOk && !statsOk);
+    ]).then(() => {
       setLoading(false);
     });
   }, []);
@@ -552,17 +561,7 @@ export default function Home() {
         return bTime - aTime;
       })
       .slice(0, 5);
-    if (live.length > 0) return live;
-    // Strip reversion/post-move data from dummies so they match live card appearance
-    return DUMMY_SHOCKS.slice(0, 5).map((s) => ({
-      ...s,
-      reversion_1h: null,
-      reversion_6h: null,
-      reversion_24h: null,
-      post_move_1h: null,
-      post_move_6h: null,
-      post_move_24h: null,
-    }));
+    return live;
   }, [liveShocks]);
 
   // Fetch featured sparklines
@@ -648,7 +647,7 @@ export default function Home() {
 
   const marketCount = stats.total_markets || 0;
 
-  const noShocks = !loading && liveShocks.length === 0 && !usingDummy;
+  const noShocks = !loading && liveShocks.length === 0;
 
   if (loading) {
     return (
@@ -690,15 +689,6 @@ export default function Home() {
       </nav>
 
       <main>
-        {usingDummy && (
-          <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
-            <div className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
-              Showing dummy data — real data will appear once the analysis
-              pipeline runs.
-            </div>
-          </div>
-        )}
-
         {/* ── Featured Shocks Carousel (always visible) ── */}
         <section className="mx-auto max-w-7xl overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
           <CardCarousel>

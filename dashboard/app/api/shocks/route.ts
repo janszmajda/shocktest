@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
-import { DUMMY_SHOCKS } from "@/lib/dummyData";
 
 export const dynamic = "force-dynamic";
 
@@ -49,19 +48,11 @@ export async function GET(request: NextRequest) {
       return currentP > 0.01 && currentP < 0.99;
     });
 
-    // Fall back to dummy data when no shocks detected
-    if (shocks.length === 0) {
-      return NextResponse.json(DUMMY_SHOCKS, {
-        headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
-      });
-    }
-
     return NextResponse.json(shocks, {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
     });
   } catch {
-    // DB connection failed — serve dummy data
-    return NextResponse.json(DUMMY_SHOCKS, {
+    return NextResponse.json([], {
       headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
     });
   }
