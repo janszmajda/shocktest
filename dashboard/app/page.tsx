@@ -382,9 +382,31 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  /* Filter out resolved markets using latest available price data */
+  const liveShocks = useMemo(() => {
+    return allShocks.filter((s) => {
+      // Check series data first (most up-to-date)
+      const series = seriesMap[s.market_id];
+      if (series && series.length > 0) {
+        const latestP = series[series.length - 1].p;
+        if (latestP <= 0.01 || latestP >= 0.99) return false;
+      }
+      // Check close time
+      const closeTime = closeTimeMap[s.market_id];
+      if (closeTime != null && closeTime < now / 1000) return false;
+      // Check post_move fields as fallback
+      let currentP = s.p_after;
+      if (s.post_move_24h != null) currentP = s.p_after + s.post_move_24h;
+      else if (s.post_move_6h != null) currentP = s.p_after + s.post_move_6h;
+      else if (s.post_move_1h != null) currentP = s.p_after + s.post_move_1h;
+      if (currentP <= 0.01 || currentP >= 0.99) return false;
+      return true;
+    });
+  }, [allShocks, seriesMap, closeTimeMap, now]);
+
   /* === Section 2: Featured shocks === */
   const featuredShocks = useMemo(() => {
-    return [...allShocks]
+    return [...liveShocks]
       .filter((s) => s.p_after > 0.01 && s.p_after < 0.99)
       .sort((a, b) => {
         const aLive = a.is_live_alert ? 1 : 0;
@@ -399,7 +421,7 @@ export default function Home() {
         return bTime - aTime;
       })
       .slice(0, 3);
-  }, [allShocks]);
+  }, [liveShocks]);
 
   // Fetch featured sparklines
   useEffect(() => {
@@ -408,16 +430,6 @@ export default function Home() {
     }
   }, [featuredShocks, fetchMiniSeries]);
 
-  /* === Section 5: AI analysis preview === */
-  const aiPreview = useMemo(() => {
-    return allShocks.find(
-      (s) =>
-        s.ai_analysis &&
-        s.ai_analysis.likely_cause &&
-        s.ai_analysis.reversion_confidence === "high",
-    );
-  }, [allShocks]);
-
   /* === Section 6: All shocks grid with infinite scroll === */
   const GRID_PAGE_SIZE = 20;
   const [gridCategory, setGridCategory] = useState<string>("all");
@@ -425,9 +437,8 @@ export default function Home() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const gridShocks = useMemo(() => {
-    return [...allShocks]
+    return [...liveShocks]
       .filter((s) => {
-        if (s.p_after <= 0.01 || s.p_after >= 0.99) return false;
         if (gridCategory !== "all" && s.category !== gridCategory) return false;
         return true;
       })
@@ -440,7 +451,7 @@ export default function Home() {
           : new Date(b.t2).getTime();
         return bTime - aTime;
       });
-  }, [allShocks, gridCategory]);
+  }, [liveShocks, gridCategory]);
 
   const gridVisible = gridShocks.slice(0, gridVisibleCount);
   const gridHasMore = gridVisibleCount < gridShocks.length;
@@ -485,13 +496,12 @@ export default function Home() {
   /* Category counts from the current (last-hour) shocks only */
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const s of allShocks) {
-      if (s.p_after <= 0.01 || s.p_after >= 0.99) continue;
+    for (const s of liveShocks) {
       const cat = s.category ?? "other";
       counts[cat] = (counts[cat] || 0) + 1;
     }
     return counts;
-  }, [allShocks]);
+  }, [liveShocks]);
 
   const totalShockCount = Object.values(categoryCounts).reduce(
     (a, b) => a + b,
@@ -500,7 +510,7 @@ export default function Home() {
 
   const marketCount = stats.total_markets || 0;
 
-  const noShocks = !loading && allShocks.length === 0 && !usingDummy;
+  const noShocks = !loading && liveShocks.length === 0 && !usingDummy;
 
   if (loading) {
     return (
@@ -609,81 +619,7 @@ export default function Home() {
 
             {/* ── SECTION 4: Portfolio Builder ── */}
             <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-              <PortfolioBuilder allShocks={allShocks} />
-            </section>
-
-            {/* ── SECTION 5: AI Analysis Bar ── */}
-            <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-              <div className="rounded-lg bg-surface-2 px-6 py-5">
-                {aiPreview?.ai_analysis ? (
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-dim">
-                      <svg
-                        className="h-4 w-4 text-accent"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-text-primary">
-                        AI Insight &mdash; {aiPreview.question}
-                      </p>
-                      <p className="mt-1 text-xs text-text-secondary">
-                        {aiPreview.ai_analysis.likely_cause}
-                      </p>
-                      <p className="mt-0.5 text-xs text-text-muted">
-                        Reversion confidence:{" "}
-                        <span
-                          className={
-                            aiPreview.ai_analysis.reversion_confidence ===
-                            "high"
-                              ? "font-semibold text-yes-text"
-                              : aiPreview.ai_analysis
-                                    .reversion_confidence === "medium"
-                                ? "font-semibold text-text-secondary"
-                                : "font-semibold text-no-text"
-                          }
-                        >
-                          {aiPreview.ai_analysis.reversion_confidence}
-                        </span>
-                      </p>
-                    </div>
-                    <Link
-                      href={`/shock/${aiPreview._id}`}
-                      className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-                    >
-                      Analyze
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center gap-3 py-2">
-                    <svg
-                      className="h-4 w-4 text-text-muted"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                    <p className="text-sm text-text-muted">
-                      Select shocks above to get AI-powered portfolio analysis
-                    </p>
-                  </div>
-                )}
-              </div>
+              <PortfolioBuilder allShocks={liveShocks} />
             </section>
 
             {/* ── SECTION 6: All Shocks Grid ── */}

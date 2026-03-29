@@ -13,8 +13,9 @@ export async function GET(request: NextRequest) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     const filter = showAll
-      ? {}
+      ? { source: "polymarket" }
       : {
+          source: "polymarket",
           $or: [
             { detected_at: { $gte: oneHourAgo } },
             { t2: { $gte: oneHourAgo } },
@@ -37,12 +38,14 @@ export async function GET(request: NextRequest) {
       .sort({ detected_at: -1, t2: -1 })
       .toArray();
 
-    // Strip live/recent flags from resolved markets (price at 0% or 100%)
-    const shocks = raw.map((s) => {
-      if (s.p_after <= 0.01 || s.p_after >= 0.99) {
-        return { ...s, is_live_alert: false, is_recent: false };
-      }
-      return s;
+    // Filter out resolved markets — use best estimate of current price
+    const shocks = raw.filter((s) => {
+      if (showAll) return true;
+      let currentP = s.p_after;
+      if (s.post_move_24h != null) currentP = s.p_after + s.post_move_24h;
+      else if (s.post_move_6h != null) currentP = s.p_after + s.post_move_6h;
+      else if (s.post_move_1h != null) currentP = s.p_after + s.post_move_1h;
+      return currentP > 0.01 && currentP < 0.99;
     });
 
     return NextResponse.json(shocks, {
