@@ -101,12 +101,12 @@ export default function PayoffCurve({
             <ReferenceLine y={0} stroke="#55555f" strokeDasharray="3 3" />
             <ReferenceLine
               x={Math.round(currentPrice * 100)}
-              stroke="#5b8def"
+              stroke="#F26522"
               strokeDasharray="5 5"
               label={{
                 value: "Current",
                 position: "top",
-                style: { fontSize: 10, fill: "#5b8def" },
+                style: { fontSize: 10, fill: "#F26522" },
               }}
             />
             {meanReversionTarget !== null && (
@@ -131,7 +131,7 @@ export default function PayoffCurve({
             <Line
               type="monotone"
               dataKey="pnl"
-              stroke="#5b8def"
+              stroke="#F26522"
               dot={false}
               strokeWidth={2}
             />

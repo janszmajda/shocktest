@@ -321,7 +321,7 @@ export default function PortfolioPage() {
     return showAll ? filtered : filtered.slice(0, 20);
   }, [allShocks, searchQuery, showAll, activeTab, categoryFilter]);
 
-  const POSITION_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#c026d3"];
+  const POSITION_COLORS = ["#F26522", "#7c3aed", "#0891b2", "#c026d3"];
   const QUICK_SIZES = [50, 100, 250, 500];
 
   const [now] = useState(() => Date.now());

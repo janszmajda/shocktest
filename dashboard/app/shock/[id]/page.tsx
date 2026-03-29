@@ -30,8 +30,8 @@ interface ShockDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-function formatPp(val: number | null): string {
-  if (val === null) return "—";
+function formatPp(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return "—";
   const sign = val > 0 ? "+" : "";
   return `${sign}${(val * 100).toFixed(1)}pp`;
 }
@@ -422,6 +422,11 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
               </tbody>
             </table>
           </div>
+          {shock.post_move_1h == null && shock.post_move_6h == null && shock.post_move_24h == null && (
+            <p className="mt-2 text-xs text-text-muted">
+              This is a live shock — post-shock data will populate as time passes.
+            </p>
+          )}
         </div>
 
         {/* 8. Caveats */}

@@ -94,7 +94,7 @@ export default function PnlTimeline({
             <Line
               type="monotone"
               dataKey="pnl"
-              stroke="#5b8def"
+              stroke="#F26522"
               dot={false}
               strokeWidth={2}
             />

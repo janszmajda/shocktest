@@ -144,13 +144,13 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
                         : closest,
                     ).label
                   }
-                  stroke="#5b8def"
+                  stroke="#F26522"
                   strokeDasharray="6 3"
                   strokeWidth={2}
                   label={{
                     value: `Mean: ${meanReversion.toFixed(1)}pp`,
                     position: "top",
-                    style: { fontSize: 10, fill: "#5b8def" },
+                    style: { fontSize: 10, fill: "#F26522" },
                   }}
                 />
               )}
@@ -172,7 +172,7 @@ export default function Histogram({ shocks, horizon = "6h" }: HistogramProps) {
         <p className="mt-2 text-center text-xs text-text-muted">
           <span className="text-yes-text">Green</span> = reversion &middot;{" "}
           <span className="text-no-text">Red</span> = continuation &middot;{" "}
-          <span style={{ color: "#5b8def" }}>Dashed</span> = mean
+          <span style={{ color: "#F26522" }}>Dashed</span> = mean
         </p>
 
         {/* Category filter */}

@@ -5,7 +5,7 @@ export const CATEGORY_COLORS: Record<string, { text: string; bg: string }> = {
   sports:      { text: "#34d399", bg: "rgba(52,211,153,0.12)" },  // emerald
   esports:     { text: "#a78bfa", bg: "rgba(167,139,250,0.12)" }, // violet
   crypto:      { text: "#fbbf24", bg: "rgba(251,191,36,0.12)" },  // amber
-  finance:     { text: "#60a5fa", bg: "rgba(96,165,250,0.12)" },  // blue
+  finance:     { text: "#F26522", bg: "rgba(242,101,34,0.12)" },   // orange (site accent)
   geopolitics: { text: "#f472b6", bg: "rgba(244,114,182,0.12)" }, // pink
   tech:        { text: "#22d3ee", bg: "rgba(34,211,238,0.12)" },  // cyan
   weather:     { text: "#94a3b8", bg: "rgba(148,163,184,0.12)" }, // slate
