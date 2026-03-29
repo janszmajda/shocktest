@@ -13,25 +13,13 @@ type SortKey = "abs_delta" | "t2" | "reversion_6h";
 export default function ShocksTable({ shocks }: ShocksTableProps) {
   const [sortBy, setSortBy] = useState<SortKey>("t2");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-
   const mostRecentT2 = useMemo(() => {
     if (shocks.length === 0) return 0;
     return Math.max(...shocks.map((s) => new Date(s.t2).getTime()));
   }, [shocks]);
 
-  const categories = useMemo(() => {
-    const cats = new Set(shocks.map((s) => s.category).filter(Boolean));
-    return ["all", ...Array.from(cats)];
-  }, [shocks]);
-
   const sorted = useMemo(() => {
-    const filtered =
-      categoryFilter === "all"
-        ? shocks
-        : shocks.filter((s) => s.category === categoryFilter);
-
-    return [...filtered].sort((a, b) => {
+    return [...shocks].sort((a, b) => {
       // Live alerts always sort to the top
       const aLive = a.is_live_alert === true ? 1 : 0;
       const bLive = b.is_live_alert === true ? 1 : 0;
@@ -45,7 +33,7 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
         return mul * ((a.reversion_6h ?? 0) - (b.reversion_6h ?? 0));
       return 0;
     });
-  }, [shocks, sortBy, sortDir, categoryFilter]);
+  }, [shocks, sortBy, sortDir]);
 
   function handleSort(key: SortKey) {
     if (sortBy === key) {
@@ -85,17 +73,6 @@ export default function ShocksTable({ shocks }: ShocksTableProps) {
               </button>
             ))}
           </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-md border border-border bg-surface-1 px-2.5 py-1 text-[11px] text-text-secondary"
-          >
-            {categories.map((c) => (
-              <option key={c} value={c!}>
-                {c === "all" ? "All" : c}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 

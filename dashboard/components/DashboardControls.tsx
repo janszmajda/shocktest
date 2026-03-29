@@ -9,27 +9,22 @@ export interface DashboardFilters {
 }
 
 interface DashboardControlsProps {
-  categories: string[];
-  onFilterChange: (filters: DashboardFilters) => void;
+  onFilterChange: (filters: Partial<DashboardFilters>) => void;
 }
 
 export default function DashboardControls({
-  categories,
   onFilterChange,
 }: DashboardControlsProps) {
   const [theta, setTheta] = useState(0.08);
   const [horizon, setHorizon] = useState<"1h" | "6h" | "24h">("6h");
-  const [category, setCategory] = useState("all");
 
   function emitChange(
     newTheta: number,
     newHorizon: "1h" | "6h" | "24h",
-    newCategory: string,
   ) {
     onFilterChange({
       theta: newTheta,
       horizon: newHorizon,
-      category: newCategory,
     });
   }
 
@@ -51,7 +46,7 @@ export default function DashboardControls({
           onChange={(e) => {
             const val = Number(e.target.value);
             setTheta(val);
-            emitChange(val, horizon, category);
+            emitChange(val, horizon);
           }}
           className="mt-1 w-full"
         />
@@ -71,7 +66,7 @@ export default function DashboardControls({
               key={h}
               onClick={() => {
                 setHorizon(h);
-                emitChange(theta, h, category);
+                emitChange(theta, h);
               }}
               className={`rounded-md px-3 py-1.5 font-mono text-xs font-medium ${
                 horizon === h
@@ -85,26 +80,6 @@ export default function DashboardControls({
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-text-secondary">
-          Category
-        </label>
-        <select
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
-            emitChange(theta, horizon, e.target.value);
-          }}
-          className="mt-1 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-xs text-text-secondary"
-        >
-          <option value="all">All Categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 }

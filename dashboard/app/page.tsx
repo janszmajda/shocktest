@@ -106,6 +106,17 @@ export default function Home() {
     ) as string[];
   }, [allShocks]);
 
+  // Category counts from filtered-by-theta shocks (not by category)
+  const categoryCounts = useMemo(() => {
+    const thetaFiltered = allShocks.filter((s) => s.abs_delta >= filters.theta);
+    const counts: Record<string, number> = {};
+    for (const s of thetaFiltered) {
+      const cat = s.category ?? "Uncategorized";
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [allShocks, filters.theta]);
+
   // Live alerts: shocks with is_live_alert or very recent, sorted most recent first
   const liveAlerts = useMemo(() => {
     return allShocks
@@ -117,8 +128,8 @@ export default function Home() {
       .sort((a, b) => (a.hours_ago ?? 999) - (b.hours_ago ?? 999));
   }, [allShocks]);
 
-  const handleFilterChange = useCallback((newFilters: DashboardFilters) => {
-    setFilters(newFilters);
+  const handleFilterChange = useCallback((newFilters: Partial<DashboardFilters>) => {
+    setFilters((prev) => ({ ...prev, ...newFilters }));
   }, []);
 
   return (
@@ -126,9 +137,9 @@ export default function Home() {
       <Header />
       {/* Stats bar — full width, sits right under nav like Polymarket */}
       {!loading && <StatsCards stats={filteredStats} />}
-      <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         {usingDummy && !loading && (
-          <div className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
+          <div className="mb-5 rounded-md border border-border bg-surface-2 px-3 py-1.5 text-center text-[11px] text-text-muted">
             Showing dummy data — real data will appear once the analysis pipeline
             runs.
           </div>
@@ -137,16 +148,71 @@ export default function Home() {
           <LoadingSpinner />
         ) : (
           <>
-            <LiveAlertBanner alerts={liveAlerts} />
-            <DashboardControls
-              categories={categories}
-              onFilterChange={handleFilterChange}
-            />
-            <FindingsBlock stats={filteredStats} />
-            <ShocksTable shocks={filteredShocks} />
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <Histogram shocks={filteredShocks} />
-              <CategoryBreakdown stats={stats} />
+            <div className="space-y-5">
+              <LiveAlertBanner alerts={liveAlerts} />
+              <DashboardControls
+                onFilterChange={handleFilterChange}
+              />
+              <FindingsBlock stats={filteredStats} />
+            </div>
+
+            {/* Sidebar + main content layout */}
+            <div className="mt-5 flex gap-5">
+              {/* Left sidebar — categories */}
+              <aside className="hidden w-56 shrink-0 lg:block">
+                <div className="sticky top-5 rounded-lg border border-border bg-surface-1 p-4">
+                  <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                    Categories
+                  </h3>
+                  <ul className="space-y-0.5">
+                    <li>
+                      <button
+                        onClick={() =>
+                          handleFilterChange({ ...filters, category: "all" })
+                        }
+                        className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
+                          filters.category === "all"
+                            ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
+                            : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                        }`}
+                      >
+                        <span>All</span>
+                        <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                          {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
+                        </span>
+                      </button>
+                    </li>
+                    {categories.map((cat) => (
+                      <li key={cat}>
+                        <button
+                          onClick={() =>
+                            handleFilterChange({ ...filters, category: cat })
+                          }
+                          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-all ${
+                            filters.category === cat
+                              ? "border-l-2 border-accent bg-surface-2 font-semibold text-text-primary"
+                              : "text-text-secondary hover:bg-surface-2 hover:text-text-primary"
+                          }`}
+                        >
+                          <span>{cat}</span>
+                          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                            {categoryCounts[cat] ?? 0}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </aside>
+
+              {/* Main content */}
+              <div className="min-w-0 flex-1 space-y-5">
+                <ShocksTable shocks={filteredShocks} />
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                  <Histogram shocks={filteredShocks} />
+                  <CategoryBreakdown stats={stats} />
+                </div>
+              </div>
             </div>
           </>
         )}
