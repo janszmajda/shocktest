@@ -13,6 +13,33 @@ import { cachedFetch, invalidate } from "@/lib/fetchCache";
 
 /* ── Helpers ── */
 
+const ROTATING_WORDS = ["overreaction", "panic", "shock", "spike", "outlier"];
+
+function RotatingWord() {
+  const [index, setIndex] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFading(true);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % ROTATING_WORDS.length);
+        setFading(false);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span
+      className="text-accent inline-block transition-opacity duration-300"
+      style={{ opacity: fading ? 0 : 1 }}
+    >
+      {ROTATING_WORDS[index]}
+    </span>
+  );
+}
+
 function timeAgo(t2: string): string {
   const diffMs = Date.now() - new Date(t2).getTime();
   const mins = Math.floor(diffMs / 60000);
@@ -638,13 +665,17 @@ export default function Home() {
             )}
 
             {/* ── SECTION 3: Explainer Text ── */}
-            <section className="mx-auto max-w-7xl px-4 py-8 text-center sm:px-6 lg:px-8">
-              <p className="text-sm text-text-muted">
-                ShockTest detects sudden probability moves on Polymarket and
-                analyzes whether they&apos;re overreactions. Browse live shocks
-                below, build a fade portfolio, or click any market for deep
-                analysis.
+            <section className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
+              <h2 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl">
+                Detect the <RotatingWord />.{" "}
+                Size the trade.
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-text-muted">
+                ShockTest scans Polymarket for sudden probability moves and
+                backtests whether they revert. Browse shocks, build a portfolio,
+                or dive into any market for deep analysis.
               </p>
+              <div className="mx-auto mt-6 h-px w-24" style={{ backgroundColor: "var(--st-accent)" }} />
             </section>
 
             {/* ── SECTION 4: Portfolio Builder ── */}
