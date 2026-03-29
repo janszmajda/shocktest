@@ -1,0 +1,379 @@
+/* ── ShockTest Overlay — injected on polymarket.com ── */
+/* All classes prefixed with .st- to avoid conflicts */
+
+/* ── Animations ── */
+@keyframes st-slideIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes st-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes st-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(242, 101, 34, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(242, 101, 34, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(242, 101, 34, 0); }
+}
+
+/* ── Main panel ── */
+#shocktest-overlay {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  background: #1e1e22;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #f5f5f5;
+  z-index: 999999;
+  overflow: hidden;
+  animation: st-slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+#shocktest-overlay.st-hidden {
+  transform: translateY(12px) scale(0.97);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Collapsed pill ── */
+#shocktest-toggle {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #1e1e22;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  z-index: 999999;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5f5f5;
+  transition: all 0.2s ease;
+  animation: st-slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+#shocktest-toggle:hover {
+  background: #27272b;
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+#shocktest-toggle .st-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #F26522;
+  flex-shrink: 0;
+}
+
+/* ── Header ── */
+.st-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.st-logo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f5f5f5;
+}
+.st-logo span {
+  color: #F26522;
+}
+
+.st-header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.st-header-btn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  line-height: 1;
+}
+.st-header-btn:hover {
+  color: #f5f5f5;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Body ── */
+.st-body {
+  padding: 12px 14px;
+}
+
+/* Market name */
+.st-market-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5f5f5;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Delta badge */
+.st-delta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.st-delta {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.st-delta.st-up { color: #10b981; }
+.st-delta.st-down { color: #ef4444; }
+
+.st-delta-label {
+  font-size: 11px;
+  color: #666;
+  text-align: right;
+}
+.st-delta-time {
+  font-size: 11px;
+  color: #a0a0a0;
+}
+
+/* Stats grid */
+.st-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.st-stat {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.st-stat:hover { background: rgba(255, 255, 255, 0.05); }
+
+.st-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.st-stat-value {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #f5f5f5;
+}
+.st-stat-value.st-positive { color: #10b981; }
+
+/* AI analysis section */
+.st-ai {
+  padding: 8px 10px;
+  background: rgba(242, 101, 34, 0.06);
+  border: 1px solid rgba(242, 101, 34, 0.12);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.st-ai-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #F26522;
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.st-ai-text {
+  font-size: 12px;
+  color: #a0a0a0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Prices row */
+.st-prices {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+}
+
+/* CTA link */
+.st-cta {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #F26522;
+  text-decoration: none;
+  border: 1px solid rgba(242, 101, 34, 0.2);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.st-cta:hover {
+  background: rgba(242, 101, 34, 0.08);
+  border-color: rgba(242, 101, 34, 0.35);
+  transform: translateY(-1px);
+}
+.st-cta:active { transform: translateY(0); }
+
+/* ── No-shock state ── */
+.st-no-shock {
+  padding: 16px 14px;
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+}
+
+/* ── Multiple shocks nav ── */
+.st-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: #666;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.st-nav-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #a0a0a0;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+.st-nav-btn:hover {
+  color: #f5f5f5;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ══════════════════════════════════════════
+   Chart shock highlight overlay
+   ══════════════════════════════════════════ */
+
+.st-chart-overlay-container {
+  pointer-events: none;
+  z-index: 10;
+  overflow: visible;
+}
+
+/* Vertical band marking the shock zone (t1 to t2) */
+.st-shock-band {
+  background: rgba(239, 68, 68, 0.12);
+  border-left: 2px solid rgba(239, 68, 68, 0.45);
+  border-right: 1px solid rgba(239, 68, 68, 0.2);
+  animation: st-fadeIn 0.4s ease;
+}
+.st-shock-band.st-up-shock {
+  background: rgba(16, 185, 129, 0.10);
+  border-left-color: rgba(16, 185, 129, 0.45);
+  border-right-color: rgba(16, 185, 129, 0.2);
+}
+
+/* Label pinned to top of band */
+.st-shock-label {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  line-height: 1.3;
+  pointer-events: auto;
+  cursor: default;
+  animation: st-fadeIn 0.5s ease 0.1s both;
+}
+.st-shock-label.st-down-label {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+.st-shock-label.st-up-label {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+/* Dashed vertical line at exact shock time t2 */
+.st-shock-line {
+  width: 0;
+  border-left: 2px dashed rgba(242, 101, 34, 0.6);
+  animation: st-fadeIn 0.3s ease;
+}
+
+/* Tooltip at bottom of the dashed line */
+.st-shock-line-tip {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  color: #F26522;
+  background: rgba(20, 20, 24, 0.92);
+  border: 1px solid rgba(242, 101, 34, 0.25);
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* Pulsing dot at the shock price level */
+.st-shock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #F26522;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 0 rgba(242, 101, 34, 0.4);
+  animation: st-pulse 2s ease-out infinite, st-fadeIn 0.3s ease;
+}
