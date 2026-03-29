@@ -40,8 +40,8 @@ function MiniSparkline({
 
   if (points.length < 2) return null;
 
-  const w = 140;
-  const h = 48;
+  const w = 300;
+  const h = 44;
   const pad = 2;
 
   const pValues = points.map((pt) => pt.p);
@@ -80,13 +80,14 @@ function MiniSparkline({
   }
 
   return (
-    <svg width={w} height={h} className="block">
+    <svg viewBox={`0 0 ${w} ${h}`} className="block h-10 flex-1" preserveAspectRatio="xMidYMid meet">
       <path d={areaPath} fill={fillColor} />
       <path
         d={linePath}
         fill="none"
         stroke={strokeColor}
         strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -236,7 +237,7 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
             <Link
               key={shock._id}
               href={`/shock/${shock._id}`}
-              className="flex flex-col rounded-lg border border-border bg-surface-1 p-4 transition-all hover:border-border-hover hover:bg-surface-2"
+              className="flex flex-col rounded-lg border border-border bg-surface-1 p-5 transition-all hover:border-border-hover hover:bg-surface-2"
             >
               {/* Top row: badges + time ago */}
               <div className="mb-2 flex items-center justify-between">
@@ -266,7 +267,7 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
               </p>
 
               {/* Sparkline preview */}
-              <div className="mt-3 flex items-end justify-between">
+              <div className="mt-3 flex items-end justify-between gap-3">
                 <MiniSparkline
                   series={seriesMap[shock.market_id]}
                   shock={shock}
