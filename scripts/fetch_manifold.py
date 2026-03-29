@@ -75,6 +75,12 @@ def store_manifold_market(market: dict, bets: list[dict]) -> int:
             deduped.append(series[-1])
         series = deduped
 
+    # Manifold closeTime is in milliseconds
+    close_time_raw = market.get("closeTime")
+    close_time: float | None = None
+    if close_time_raw is not None:
+        close_time = float(close_time_raw) / 1000.0
+
     doc = {
         "market_id": f"manifold_{market['id']}",
         "source": "manifold",
@@ -83,6 +89,7 @@ def store_manifold_market(market: dict, bets: list[dict]) -> int:
         "volume": float(market.get("volume", 0)),
         "series": series,
         "category": None,
+        "close_time": close_time,
     }
 
     db["market_series"].update_one(

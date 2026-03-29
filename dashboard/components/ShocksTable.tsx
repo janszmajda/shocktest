@@ -3,14 +3,18 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Shock, PricePoint } from "@/lib/types";
+import { DashboardFilters } from "@/components/DashboardControls";
 
 interface ShocksTableProps {
   shocks: Shock[];
   seriesMap?: Record<string, PricePoint[]>;
+  closeTimeMap?: Record<string, number | null>;
+  theta?: number;
+  horizon?: "1h" | "6h" | "24h";
+  onFilterChange?: (filters: Partial<DashboardFilters>) => void;
 }
 
 type SortKey = "abs_delta" | "t2" | "reversion_6h";
-
 const PAGE_SIZE = 10;
 
 /** Inline SVG sparkline from real price series data */
@@ -21,10 +25,8 @@ function MiniSparkline({
   series: PricePoint[] | undefined;
   shock: Shock;
 }) {
-  // Fall back to synthetic points if no series data yet
   const points: { t: number; p: number }[] = useMemo(() => {
     if (series && series.length >= 2) return series;
-    // Synthetic fallback
     const synth: { t: number; p: number }[] = [
       { t: 0, p: shock.p_before },
       { t: 1, p: shock.p_after },
@@ -63,7 +65,6 @@ function MiniSparkline({
   const strokeColor = isUp ? "var(--st-yes)" : "var(--st-no)";
   const fillColor = isUp ? "rgba(34,199,138,0.10)" : "rgba(240,92,92,0.10)";
 
-  // Find the shock point in the series (closest to t2)
   let shockIdx = -1;
   if (series && series.length >= 2) {
     const t2 = new Date(shock.t2).getTime() / 1000;
@@ -76,7 +77,7 @@ function MiniSparkline({
       }
     }
   } else {
-    shockIdx = 1; // synthetic: index 1 is p_after
+    shockIdx = 1;
   }
 
   return (
@@ -114,7 +115,14 @@ function timeAgo(t2: string): string {
   return `${days}d ago`;
 }
 
-export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps) {
+export default function ShocksTable({
+  shocks,
+  seriesMap = {},
+  closeTimeMap = {},
+  theta = 0.08,
+  horizon = "6h",
+  onFilterChange,
+}: ShocksTableProps) {
   const [sortBy, setSortBy] = useState<SortKey>("t2");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState("");
@@ -161,15 +169,10 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
 
   return (
     <div>
-      {/* Header with search + sort */}
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm font-semibold text-text-primary">
-          Detected Shocks
-          <span className="ml-2 text-xs font-normal text-text-muted">
-            {sorted.length} result{sorted.length !== 1 ? "s" : ""}
-          </span>
-        </span>
-        <div className="flex items-center gap-2">
+      {/* Controls bar */}
+      <div className="mb-3 rounded-lg border border-border bg-surface-1 p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* Search */}
           <div className="relative">
             <svg
               className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted"
@@ -192,10 +195,15 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
                 setSearch(e.target.value);
                 setVisibleCount(PAGE_SIZE);
               }}
-              className="w-44 rounded-md border border-border bg-surface-1 py-1 pl-8 pr-3 text-[11px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none sm:w-56"
+              className="w-44 rounded-md border border-border bg-surface-2 py-1 pl-8 pr-3 text-[11px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none sm:w-52"
             />
           </div>
-          <div className="flex gap-0.5 rounded-lg border border-border bg-surface-1 p-0.5">
+
+          {/* Divider */}
+          <div className="hidden h-5 w-px bg-surface-3 sm:block" />
+
+          {/* Sort */}
+          <div className="flex gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5">
             {(
               [
                 { key: "t2", label: "Recent" },
@@ -208,7 +216,7 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
                 onClick={() => handleSort(opt.key)}
                 className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
                   sortBy === opt.key
-                    ? "bg-surface-2 text-text-primary"
+                    ? "bg-surface-3 text-text-primary"
                     : "text-text-muted hover:text-text-secondary"
                 }`}
               >
@@ -216,6 +224,56 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
               </button>
             ))}
           </div>
+
+          {/* Divider */}
+          <div className="hidden h-5 w-px bg-surface-3 sm:block" />
+
+          {/* Threshold (theta) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-text-muted">Threshold</span>
+            <span className="font-mono text-[11px] font-semibold text-accent">
+              {(theta * 100).toFixed(0)}pp
+            </span>
+            <input
+              type="range"
+              min={0.03}
+              max={0.2}
+              step={0.01}
+              value={theta}
+              onChange={(e) =>
+                onFilterChange?.({ theta: Number(e.target.value) })
+              }
+              className="w-20"
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="hidden h-5 w-px bg-surface-3 sm:block" />
+
+          {/* Horizon */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-text-muted">Horizon</span>
+            <div className="flex gap-0.5 rounded-lg border border-border bg-surface-2 p-0.5">
+              {(["1h", "6h", "24h"] as const).map((h) => (
+                <button
+                  key={h}
+                  onClick={() => onFilterChange?.({ horizon: h })}
+                  className={`rounded-md px-2 py-1 font-mono text-[11px] font-medium transition-all ${
+                    horizon === h
+                      ? "bg-accent text-white"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Result count — pushed right */}
+          <span className="ml-auto text-[11px] text-text-muted">
+            {sorted.length} result{sorted.length !== 1 ? "s" : ""}
+          </span>
         </div>
       </div>
 
@@ -230,7 +288,9 @@ export default function ShocksTable({ shocks, seriesMap = {} }: ShocksTableProps
           else if (shock.post_move_1h !== null)
             latestPrice = shock.p_after + shock.post_move_1h;
           const isResolved = latestPrice <= 0.03 || latestPrice >= 0.97;
-          const isLive = shock.reversion_24h === null && !isResolved;
+          const closeTime = closeTimeMap[shock.market_id];
+          const marketClosed = closeTime != null && closeTime < Date.now() / 1000;
+          const isLive = !marketClosed && !isResolved;
           const isUp = shock.delta > 0;
 
           return (

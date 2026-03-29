@@ -12,6 +12,7 @@ export interface Market {
   volume: number;
   category: string | null;
   series?: PricePoint[]; // only included when fetching single market
+  close_time?: number | null; // unix seconds — when market closes/expires
 }
 
 export interface Shock {

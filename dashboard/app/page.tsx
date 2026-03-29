@@ -4,13 +4,10 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "@/components/Header";
 import LiveAlertBanner from "@/components/LiveAlertBanner";
 import StatsCards from "@/components/StatsCards";
-import FindingsBlock from "@/components/FindingsBlock";
 import ShocksTable from "@/components/ShocksTable";
 import Histogram from "@/components/Histogram";
 import CategoryBreakdown from "@/components/CategoryBreakdown";
-import DashboardControls, {
-  DashboardFilters,
-} from "@/components/DashboardControls";
+import { DashboardFilters } from "@/components/DashboardControls";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { DUMMY_SHOCKS, DUMMY_STATS } from "@/lib/dummyData";
@@ -22,6 +19,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [usingDummy, setUsingDummy] = useState(true);
   const [seriesMap, setSeriesMap] = useState<Record<string, PricePoint[]>>({});
+  const [closeTimeMap, setCloseTimeMap] = useState<Record<string, number | null>>({});
   const [filters, setFilters] = useState<DashboardFilters>({
     theta: 0.08,
     horizon: "6h",
@@ -52,9 +50,17 @@ export default function Home() {
                   .catch(() => ({})),
               ),
             ).then((results) => {
-              const merged: Record<string, PricePoint[]> = {};
-              for (const r of results) Object.assign(merged, r);
-              setSeriesMap(merged);
+              const mergedSeries: Record<string, PricePoint[]> = {};
+              const mergedClose: Record<string, number | null> = {};
+              for (const r of results) {
+                for (const [k, v] of Object.entries(r)) {
+                  const entry = v as { series: PricePoint[]; close_time: number | null };
+                  mergedSeries[k] = entry.series;
+                  mergedClose[k] = entry.close_time;
+                }
+              }
+              setSeriesMap(mergedSeries);
+              setCloseTimeMap(mergedClose);
             });
             return true;
           }
@@ -165,13 +171,7 @@ export default function Home() {
           <LoadingSpinner />
         ) : (
           <>
-            <div className="space-y-5">
-              <LiveAlertBanner alerts={liveAlerts} />
-              <DashboardControls
-                onFilterChange={handleFilterChange}
-              />
-              <FindingsBlock stats={filteredStats} />
-            </div>
+            <LiveAlertBanner alerts={liveAlerts} />
 
             {/* Sidebar + main content layout */}
             <div className="mt-5 flex gap-5">
@@ -224,7 +224,14 @@ export default function Home() {
 
               {/* Main content */}
               <div className="min-w-0 flex-1 space-y-5">
-                <ShocksTable shocks={filteredShocks} seriesMap={seriesMap} />
+                <ShocksTable
+                  shocks={filteredShocks}
+                  seriesMap={seriesMap}
+                  closeTimeMap={closeTimeMap}
+                  theta={filters.theta}
+                  horizon={filters.horizon}
+                  onFilterChange={handleFilterChange}
+                />
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                   <Histogram shocks={filteredShocks} />
                   <CategoryBreakdown stats={stats} />

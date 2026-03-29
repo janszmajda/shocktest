@@ -79,6 +79,18 @@ def store_market(market: dict, series: list[dict]) -> int:
     tokens = parse_token_ids(market)
     token_id = tokens[0] if tokens else ""
 
+    # Parse close/end date — Polymarket provides endDateIso or end_date_iso
+    end_date_raw = market.get("endDateIso") or market.get("end_date_iso")
+    close_time: float | None = None
+    if end_date_raw:
+        from datetime import datetime, timezone
+
+        try:
+            dt = datetime.fromisoformat(end_date_raw.replace("Z", "+00:00"))
+            close_time = dt.timestamp()
+        except (ValueError, TypeError):
+            pass
+
     doc = {
         "market_id": market.get("id", market.get("slug", token_id)),
         "source": "polymarket",
@@ -87,6 +99,7 @@ def store_market(market: dict, series: list[dict]) -> int:
         "volume": float(market.get("volume", 0)),
         "series": sorted(series, key=lambda x: x["t"]),
         "category": None,
+        "close_time": close_time,
     }
 
     db["market_series"].update_one(
