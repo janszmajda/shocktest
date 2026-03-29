@@ -64,7 +64,7 @@ export default function PayoffCurve({
         {(entryPrice * 100).toFixed(0)}% with ${positionSize}
       </p>
       <div className="h-72 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <ComposedChart
             data={data}
             margin={{ top: 5, right: 20, left: 10, bottom: 20 }}

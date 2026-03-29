@@ -74,7 +74,7 @@ export default function Histogram({ shocks }: HistogramProps) {
         Post-Shock Reversion Distribution (6h)
       </h2>
       <div className="h-72 w-full rounded-lg border border-border bg-surface-1 p-4">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart
             data={bins}
             margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
