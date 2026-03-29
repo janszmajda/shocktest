@@ -1,157 +1,79 @@
-# ShockTest
+## Inspiration
 
-**Do Prediction Markets Overreact? Find the Edge. Size the Trade.**
+Prediction markets are supposed to be efficient — but anyone who's watched Polymarket during a breaking news cycle knows they overreact. A headline drops, probability spikes 20 points in minutes, and then slowly drifts back. We wanted to test whether that pattern is real and tradeable. The question: **if you systematically bet against every large, sudden price move, do you make money?**
 
-ShockTest is a trading signal and analysis tool for prediction markets. It detects large probability shocks ("overreactions") in Polymarket data, measures whether they systematically mean-revert, and gives traders an interactive simulator to size fade-the-shock positions with historical edge statistics. Built in 24 hours at YHack Spring 2026.
+We were also inspired by tools like [optionsprofitcalculator.com](https://www.optionsprofitcalculator.com/) — options traders have had interactive payoff visualizers for years. Prediction market traders have nothing comparable. We wanted to build the equivalent: see a shock, understand the edge, visualize the payoff, size the trade.
 
-## The Hypothesis
+## What it does
 
-Prediction markets are often described as efficient, but they can overreact to headlines, herd during high-attention moments, or temporarily misprice due to low liquidity.
+ShockTest is a **live trading signal system** for Polymarket that detects probability shocks, measures whether markets systematically mean-revert, and gives traders the tools to act on it.
 
-We test a single, falsifiable question:
+**The finding:** We analyzed 1,337 shocks across 107 markets. **59.9% revert within 6 hours** (z = +7.13, p < 0.001). Political markets revert at 64.7%. This is a statistically significant, tradeable edge.
 
-> **H0 (null):** After a large probability shock, future price changes are random.
-> **H1 (alt):** After a large shock, probabilities systematically mean-revert.
+**The product has five layers:**
 
-We quantify which is more common, how strong the effect is, and whether it differs by market category. Then we turn that finding into a **trading tool**.
+1. **Detection** — A Python monitor polls Polymarket every 2 minutes, detects large probability moves, and fires live alerts. Google Gemini auto-categorizes each market (politics, sports, crypto, etc.).
 
-## Results
+2. **Analysis** — For each shock, an AI agent (powered by Claude) searches the web for what caused the move and assesses whether it's an overreaction. Historical backtest data shows win rates and expected P&L for similar shocks.
 
-| Metric | Value |
-|--------|-------|
-| Markets Analyzed | 1,069 (1,009 Polymarket + 60 Manifold) |
-| Total Shocks Detected | 1,337 |
-| Live Signals (last 48h) | 198 |
-| 1h Reversion Rate | 60.7% |
-| 6h Reversion Rate | 59.9% |
-| 24h Reversion Rate | 57.5% |
-| Mean 6h Reversion | +3.45 pp |
-| Fade Strategy Win Rate (6h) | 59.9% |
-| Avg P&L per $1 Risked (6h) | +$0.035 |
+3. **Visualization** — Interactive P&L heatmaps, payoff curves, scenario analysis panels, and trade simulators — all driven by real backtest data. Traders can adjust position size and see how their P&L changes across every possible outcome.
 
-**By category (6h):**
-| Category | Win Rate | Avg P&L | Sample Size |
-|----------|----------|---------|-------------|
-| Politics | 64.7% | +$0.040 | 662 |
-| Crypto | 53.5% | +$0.018 | 302 |
-| Other | 53.9% | +$0.039 | 145 |
-| Sports | 56.1% | +$0.048 | 90 |
-| Science | 60.6% | +$0.030 | 33 |
+4. **Portfolio Builder** — Select multiple shocks, size positions with AI-powered Kelly criterion optimization (via K2-Think), and see combined portfolio payoff graphs with diversification benefits.
 
-**Finding:** Across 1,337 probability shocks detected in 1,069 Polymarket and Manifold markets, 59.9% showed mean reversion within 6 hours. A simulated fade-the-shock strategy produced a 60% win rate with +$0.035 expected return per dollar risked. Political markets showed the strongest edge at 64.7% win rate — suggesting political shocks are most often overreactions to headlines, while crypto markets (53.5%) revert less reliably.
+5. **Chrome Extension** — A browser extension that overlays shock data directly on Polymarket. When you visit a market page, you see shock bands highlighted on the price chart, reversion statistics in a floating panel, and desktop notifications for new shocks.
 
-## How to Use It
+## How we built it
 
-1. Browse detected shocks in the table — filter by category, adjust the shock threshold
-2. Look for LIVE signals — shocks from the last 48 hours that are still tradeable
-3. Click a shock to see the full probability chart with the shock highlighted
-4. Use the Trade Simulator to input a position size and see expected P&L, win rate, and the historical distribution of outcomes
-5. Adjust the time horizon (1h/6h/24h) to see how the edge changes over time
+**Team of three, 24 hours, clear ownership:**
 
-## What We Built
+- **Person 1 (Data Pipeline):** Python scripts fetching from Polymarket's Gamma + CLOB APIs, shock detection algorithm, live monitor polling every 2 minutes, Google Gemini for market categorization. All data stored in MongoDB Atlas.
 
-### Shock Detection Engine
-Scans 1,069 markets for large, fast probability moves using a configurable threshold. Users can dynamically adjust the shock threshold and time horizon.
+- **Person 2 (Analysis + AI Agents):** Post-shock reversion analysis, statistical significance testing, backtest engine, Claude-powered web search agent for shock explanation, K2-Think AI for portfolio optimization, and the full Chrome extension (popup, Polymarket overlay with chart band positioning, notification system).
 
-### Post-Shock Analysis & Backtest
-Measures what happens at 1h, 6h, and 24h after each shock. Computes reversion rates, fade strategy P&L, win rates, and expected value — overall and by market category.
+- **Person 3 (Dashboard):** Next.js 14 App Router with TypeScript, Tailwind CSS, and Recharts. Single-page dashboard with featured shock carousel, interactive filtering, shock detail pages with payoff curves and scenario panels, portfolio builder page. Deployed on Vercel.
 
-### Interactive Trade Simulator
-For any detected shock, input a position size and horizon to see:
-- Expected P&L based on historical reversion data
-- Win rate and best/worst case scenarios
-- Payoff distribution chart with historical outcomes
+The Chrome extension intercepts Polymarket's own price history API calls to position shock bands with pixel accuracy on their visx SVG charts, reads axis tick data directly from the DOM, and uses a MutationObserver to handle Polymarket's React SPA navigation.
 
-### Live Signal Detection
-Shocks from the last 48 hours are flagged as potentially actionable — transforming the tool from retrospective research into a forward-looking trading signal desk.
+## Challenges we ran into
 
-### Interactive Dashboard
-Next.js web app with configurable controls (threshold slider, horizon picker, category filter), sortable shocks table, per-shock detail pages with probability charts, and aggregate statistics.
+- **Polymarket's API is undocumented.** The Gamma API returns `clobTokenIds` as either a JSON string or a list depending on the market — we had to handle both. Price history lives on a completely separate CLOB endpoint that isn't referenced anywhere in their docs.
 
-## Methodology
+- **Chrome Extension CSP.** Polymarket's Content Security Policy blocks inline scripts. We had to move our fetch interceptor to a separate file loaded via `chrome.runtime.getURL` and declared as a web-accessible resource.
 
-### Shock Detection
+- **Multi-market event pages.** A single Polymarket URL can have 5+ sub-markets (e.g. "Will X happen by March 31?" vs "...by April 5?"). Getting the overlay to show shock bands for only the currently-displayed sub-market required reading the chart title from the DOM via spatial proximity detection and cross-referencing against the URL slug.
 
-```
-|p(t2) - p(t1)| >= theta    where t2 - t1 <= T
-```
+- **K2-Think timeouts.** The AI portfolio builder sends the full shock list to K2's API, which can take 60+ seconds to respond. Cloudflare's 100-second timeout kills the connection. We had to optimize prompt size and add server-side logging to debug.
 
-- **theta** = 0.08 (8 percentage point move) — adjustable via slider from 0.03 to 0.20
-- **T** = 1 hour
+- **Sports markets break the model.** A basketball team scoring late in a close game causes a "shock" in win probability — but that's rational pricing, not an overreaction. We had to add sport-specific reasoning to the AI advisor so it doesn't recommend fading a team that's actually winning.
 
-### Fade Strategy Backtest
+## Accomplishments that we're proud of
 
-For each shock, simulate taking the opposite position:
+- **Statistically significant result.** 59.9% reversion rate with z = +7.13 isn't a fluke. We found a real, measurable inefficiency in prediction markets.
 
-```
-Entry:  Buy opposite direction at p(t2)
-Exit:   Close at p(t2 + h) for horizon h
-P&L:    position_size * reversion
-```
+- **The Chrome extension.** It reads Polymarket's visx chart axis ticks, intercepts their price history fetch calls, and draws pixel-accurate shock bands on the chart — all without any access to their source code. It feels native.
 
-**Caveats** (displayed in the tool):
-- In-sample backtest only — no out-of-sample validation
-- Ignores transaction costs, slippage, and liquidity constraints
-- Not investment advice — exploratory analysis tool
+- **End-to-end trading workflow.** Detect → Explain → Visualize → Size → Trade. Most hackathon projects stop at "here's a dashboard." We built the tools a trader would actually use to act on the signal.
 
-## Tech Stack
+- **151 commits in 24 hours** across three people with zero merge conflicts that blocked anyone for more than 5 minutes.
 
-| Layer | Tool | Purpose |
-|-------|------|---------|
-| Data Fetching | `requests` + Polymarket Gamma API + CLOB API | Fetch market listings and price history |
-| Supplemental Data | Manifold Markets API | Additional market diversity |
-| Storage | **MongoDB Atlas** (free M0) | Cloud database for time series, shocks, backtest results |
-| Analysis | `pandas` + `numpy` | Shock detection, post-shock stats, fade strategy backtest |
-| Categorization | **Google Gemini 2.5 Flash** | Auto-classify markets by category from titles |
-| Frontend | **Next.js 14** + TypeScript + Tailwind CSS + Recharts | Interactive dashboard with trade simulator |
-| Deployment | **Vercel** | Production hosting |
-| Domain | **GoDaddy** (via MLH) | Custom domain |
+## What we learned
 
-## Architecture
+- Prediction markets are efficient *on average* but systematically overreact to breaking news in the short term — especially in political markets. The edge is real but category-dependent.
 
-```
-Polymarket API ──┐
-                 ├──> Python scripts ──> MongoDB Atlas ──> Next.js API routes ──> Dashboard
-Manifold API ────┘     (scripts/)         (shocktest)      (dashboard/api/)    + Trade Simulator
-                       + analysis/
-```
+- Building browser extensions that interact with third-party SPAs is an exercise in reverse engineering. Every assumption about DOM structure can break. Spatial proximity detection (finding the nearest bold text above the chart) turned out more reliable than DOM traversal.
 
-- **Person 1** (`scripts/`): Data pipeline — fetch, clean, normalize, compute backtest data
-- **Person 2** (`analysis/`): Shock detection, post-shock analysis, Gemini categorization
-- **Person 3** (`dashboard/`): Interactive frontend with trade simulator and configurable controls
+- AI agents are powerful for analysis but unreliable for structured output. K2-Think sometimes returns valid JSON, sometimes wraps it in markdown code blocks, sometimes adds a preamble. The `extractJson` function that handles all these cases was written out of necessity.
 
-## Running Locally
+- MongoDB's free tier (512MB) is tight when you're storing price series for 100+ markets. We had to project out the `series` field on list queries and batch our mini-series fetches.
 
-```bash
-# Set environment variables
-export MONGODB_URI="your_mongodb_connection_string"
-export GEMINI_API_KEY="your_gemini_key"  # Person 2 only
+## What's next for ShockTest
 
-# Fetch data
-python scripts/fetch_polymarket.py
-python scripts/fetch_manifold.py
-python scripts/resample.py
+- **Live trading integration** — Connect to Polymarket's order API to execute fade trades directly from the dashboard, with configurable risk limits.
 
-# Run analysis
-python analysis/run_all.py
+- **Out-of-sample validation** — Our current results are in-sample. We need to run the detector forward on new data without peeking to confirm the edge persists.
 
-# Compute trade simulator data
-python scripts/add_fade_pnl.py
-python scripts/compute_distribution.py
-python scripts/flag_recent_shocks.py
+- **More markets** — Expand beyond Polymarket to Kalshi, Metaculus, and other platforms. Cross-platform arbitrage detection when the same event is priced differently.
 
-# Start dashboard
-cd dashboard && npm install && npm run dev
-```
+- **Chrome Web Store release** — Package the extension for public distribution with automatic API URL configuration.
 
-## Team
-
-Built at YHack Spring 2026 by a team of three.
-
-## Acknowledgments
-
-- **Polymarket** — Prediction Markets track sponsor, primary data source
-- **MongoDB Atlas** — Cloud database
-- **Google Gemini** — Market categorization
-- **Vercel** — Dashboard hosting
-- **GoDaddy** — Domain registration via MLH
+- **Alert customization** — Per-category notification rules, quiet hours, minimum shock thresholds, and Telegram/Discord webhook integration for teams.
