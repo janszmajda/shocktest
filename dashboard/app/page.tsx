@@ -398,7 +398,7 @@ function ShockCard({
   return (
     <Link
       href={`/shock/${shock._id}`}
-      className="shock-card flex flex-col rounded-lg bg-surface-1 p-5 transition-all hover:translate-y-0.5 hover:shadow-none shadow-sm"
+      className="shock-card flex flex-col rounded-lg border border-transparent bg-surface-1 p-5 shadow-sm transition-all hover:translate-y-0.5 hover:border-[var(--st-accent)] hover:shadow-none"
     >
       {/* Top row: badges + time ago */}
       <div className="mb-2 flex items-center justify-between">

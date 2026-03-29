@@ -813,15 +813,6 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
               </div>
             </div>
           )}
-
-          {/* Disclaimer */}
-          {selected.length > 0 && (
-            <p className="text-[10px] leading-relaxed text-text-muted">
-              Historical backtest results. Assumes independent outcomes. Ignores
-              transaction costs, slippage, and liquidity constraints. Not
-              investment advice.
-            </p>
-          )}
         </div>
       </div>
     </div>

@@ -155,9 +155,17 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
     return (
       <>
         <Header />
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <LoadingSpinner />
-          <p className="mt-2 text-center text-sm text-text-muted">Loading shock analysis...</p>
+        <main className="flex min-h-[60vh] items-center justify-center px-4">
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className="h-8 w-8 animate-spin rounded-full"
+              style={{
+                border: "4px solid var(--st-border)",
+                borderTopColor: "var(--st-accent)",
+              }}
+            />
+            <p className="text-sm text-text-muted">Loading shock analysis...</p>
+          </div>
         </main>
         <Footer />
       </>
@@ -167,14 +175,7 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-accent hover:underline"
-        >
-          &larr; Back to dashboard
-        </Link>
-
+      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {/* 1. Market title + shock metadata */}
         <div>
           <h2 className="text-2xl font-bold text-text-primary">
@@ -373,15 +374,6 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           </details>
         )}
 
-        {/* 6. Caveats */}
-        <div className="rounded-lg border-l-2 bg-surface-2 p-4" style={{ borderLeftColor: "var(--st-accent)" }}>
-          <p className="text-xs text-text-muted">
-            All analysis is based on historical data. In-sample backtest only —
-            no out-of-sample validation. Ignores transaction costs, slippage, and
-            liquidity constraints. Small sample size — edge may not persist. This
-            is an exploratory analysis tool, not investment advice.
-          </p>
-        </div>
       </main>
       <Footer />
     </>
