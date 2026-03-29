@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ShockTest Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #18181b;
+      color: #f5f5f5;
+      padding: 32px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    h1 span { color: #F26522; }
+    .subtitle { font-size: 12px; color: #666; margin-bottom: 28px; }
+
+    .field { margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #a0a0a0;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 14px;
+      background: #1e1e22;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      color: #f5f5f5;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #F26522; }
+
+    .hint { font-size: 11px; color: #666; margin-top: 4px; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .input-row input { flex: 1; }
+
+    .btn-test {
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      background: #27272b;
+      color: #a0a0a0;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .btn-test:hover { background: #32323a; color: #f5f5f5; }
+    .btn-test.testing { opacity: 0.6; pointer-events: none; }
+    .btn-test.success { border-color: #10b981; color: #10b981; }
+    .btn-test.fail { border-color: #ef4444; color: #ef4444; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+
+    .toggle-label { font-size: 14px; color: #f5f5f5; }
+
+    .switch { position: relative; width: 40px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #32323a; border-radius: 22px; transition: 0.2s;
+    }
+    .slider::before {
+      content: ""; position: absolute;
+      height: 16px; width: 16px; left: 3px; bottom: 3px;
+      background: #666; border-radius: 50%; transition: 0.2s;
+    }
+    .switch input:checked + .slider { background: #F26522; }
+    .switch input:checked + .slider::before { transform: translateX(18px); background: white; }
+
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+
+    .btn-save {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      background: #F26522;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-save:active { transform: translateY(0); }
+
+    .saved-msg {
+      font-size: 13px;
+      color: #10b981;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .saved-msg.visible { opacity: 1; }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 24px 0;
+    }
+
+    .version {
+      font-size: 11px;
+      color: #444;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shock<span>TEST</span> Settings</h1>
+  <p class="subtitle">Configure your Chrome extension preferences.</p>
+
+  <div class="field">
+    <label>API Base URL</label>
+    <div class="input-row">
+      <input type="text" id="api-base" placeholder="https://your-app.vercel.app">
+      <button class="btn-test" id="btn-test">Test</button>
+    </div>
+    <p class="hint">The URL where your ShockTest dashboard is deployed. Use http://localhost:3000 for local dev.</p>
+  </div>
+
+  <div class="field">
+    <label>Minimum Shock Threshold (pp)</label>
+    <input type="number" id="min-delta" min="1" max="50" step="1" placeholder="8">
+    <p class="hint">Only show shocks and alerts for moves above this value (in percentage points).</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field">
+    <div class="toggle-row">
+      <span class="toggle-label">Desktop Notifications</span>
+      <label class="switch">
+        <input type="checkbox" id="enable-notifications">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <p class="hint">Get notified when new shocks are detected (polls every 2 minutes).</p>
+  </div>
+
+  <div class="actions">
+    <button class="btn-save" id="btn-save">Save Settings</button>
+    <span class="saved-msg" id="saved-msg">Saved!</span>
+  </div>
+
+  <p class="version" id="version"></p>
+
+  <script>
+    const $apiBase = document.getElementById("api-base");
+    const $minDelta = document.getElementById("min-delta");
+    const $enableNotif = document.getElementById("enable-notifications");
+    const $btnSave = document.getElementById("btn-save");
+    const $btnTest = document.getElementById("btn-test");
+    const $savedMsg = document.getElementById("saved-msg");
+
+    // Show version
+    const manifest = chrome.runtime.getManifest();
+    document.getElementById("version").textContent = `${manifest.name} v${manifest.version}`;
+
+    // Load saved settings
+    chrome.storage.sync.get({
+      apiBase: "http://localhost:3000",
+      minDelta: 0.08,
+      enableNotifications: true,
+    }, (settings) => {
+      $apiBase.value = settings.apiBase;
+      $minDelta.value = Math.round(settings.minDelta * 100);
+      $enableNotif.checked = settings.enableNotifications;
+    });
+
+    // Test connection
+    $btnTest.addEventListener("click", async () => {
+      const url = ($apiBase.value.trim().replace(/\/+$/, "") || "http://localhost:3000") + "/api/stats";
+      $btnTest.textContent = "Testing...";
+      $btnTest.className = "btn-test testing";
+
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        $btnTest.textContent = "Connected (" + (data.total_shocks || 0) + " shocks)";
+        $btnTest.className = "btn-test success";
+      } catch {
+        $btnTest.textContent = "Failed";
+        $btnTest.className = "btn-test fail";
+      }
+
+      setTimeout(() => {
+        $btnTest.textContent = "Test";
+        $btnTest.className = "btn-test";
+      }, 3000);
+    });
+
+    // Save
+    $btnSave.addEventListener("click", () => {
+      const apiBase = $apiBase.value.trim().replace(/\/+$/, "") || "http://localhost:3000";
+      const minDelta = Math.max(1, Math.min(50, parseInt($minDelta.value) || 8)) / 100;
+      const enableNotifications = $enableNotif.checked;
+
+      chrome.storage.sync.set({ apiBase, minDelta, enableNotifications }, () => {
+        $savedMsg.classList.add("visible");
+        setTimeout(() => $savedMsg.classList.remove("visible"), 2000);
+      });
+    });
+  </script>
+</body>
+</html>

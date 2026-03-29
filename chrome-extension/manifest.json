@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "ShockTest — Prediction Market Signals",
+  "version": "1.0.0",
+  "description": "Detect overreactions in prediction markets. Live alerts, reversion signals, and shock tracking from your toolbar.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": "icons/icon-48.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://polymarket.com/*"],
+      "js": ["content/polymarket.js"],
+      "css": ["content/polymarket.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "alarms",
+    "notifications",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://polymarket.com/*",
+    "https://*.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "options_page": "options/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["content/interceptor.js"],
+      "matches": ["https://polymarket.com/*"]
+    }
+  ]
+}
