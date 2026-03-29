@@ -55,16 +55,17 @@ function MiniSparkline({
   }, [series, shock]);
 
   const svgData = useMemo(() => {
-    if (points.length < 2) return null;
+    const valid = points.filter((pt) => isFinite(pt.p));
+    if (valid.length < 2) return null;
     const w = 300;
     const h = 44;
     const pad = 2;
-    const pValues = points.map((pt) => pt.p);
+    const pValues = valid.map((pt) => pt.p);
     const min = Math.min(...pValues);
     const max = Math.max(...pValues);
     const range = max - min || 0.01;
-    const coords = points.map((pt, i) => ({
-      x: pad + (i / (points.length - 1)) * (w - pad * 2),
+    const coords = valid.map((pt, i) => ({
+      x: pad + (i / (valid.length - 1)) * (w - pad * 2),
       y: pad + (1 - (pt.p - min) / range) * (h - pad * 2),
     }));
     const linePath = coords

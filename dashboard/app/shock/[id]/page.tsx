@@ -6,10 +6,8 @@ import Header from "@/components/Header";
 import PriceChart from "@/components/PriceChart";
 import PnlHeatmap from "@/components/PnlHeatmap";
 import AiAnalysisBox from "@/components/AiAnalysisBox";
-import PayoffCurve from "@/components/PayoffCurve";
 import ScenarioPanel from "@/components/ScenarioPanel";
 import TradeSimulator from "@/components/TradeSimulator";
-import PnlTimeline from "@/components/PnlTimeline";
 import Footer from "@/components/Footer";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
@@ -110,11 +108,6 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
   const shockT2 = new Date(shock.t2).getTime() / 1000;
   const fadeDirection = shock.delta > 0 ? "buy_no" : "buy_yes";
   const currentPrice = series.length > 0 ? series[series.length - 1].p : shock.p_after;
-  const meanReversionTarget =
-    shock.delta > 0
-      ? shock.p_after - (stats.mean_reversion_6h ?? 0)
-      : shock.p_after + (stats.mean_reversion_6h ?? 0);
-
   const catStats = shock.category
     ? similarStats.backtest?.by_category[shock.category]
     : null;
@@ -264,31 +257,6 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           )}
         </div>
 
-        {/* Shared position size control */}
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 px-4 py-3">
-          <label className="text-sm font-medium text-text-secondary">
-            Position Size:
-          </label>
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-text-muted">$</span>
-            <input
-              type="number"
-              value={positionSize}
-              onChange={(e) =>
-                setPositionSize(
-                  Math.max(1, Math.min(10000, Number(e.target.value))),
-                )
-              }
-              min={1}
-              max={10000}
-              className="w-28 rounded-md border border-border bg-surface-2 px-2 py-1 text-sm"
-            />
-          </div>
-          <p className="text-xs text-text-muted">
-            Shared across all analysis below
-          </p>
-        </div>
-
         {/* 2. PriceChart */}
         <div className="rounded-lg border border-border bg-surface-1 p-6">
           <h3 className="mb-4 text-sm font-medium text-text-muted">
@@ -313,123 +281,98 @@ export default function ShockDetailPage({ params }: ShockDetailPageProps) {
           />
         )}
 
-        {/* 2c. P&L Heatmap */}
-        <PnlHeatmap
-          entryPrice={shock.p_after}
-          positionSize={positionSize}
-          direction={fadeDirection}
-        />
+        {/* Collapsible analysis panels */}
+        <details className="group rounded-lg border border-border bg-surface-1">
+          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+              P&amp;L Heatmap
+            </span>
+          </summary>
+          <div className="space-y-3 px-5 pb-4">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-text-muted">Position Size:</label>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-text-muted">$</span>
+                <input
+                  type="number"
+                  value={positionSize}
+                  onChange={(e) => setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))}
+                  min={1}
+                  max={10000}
+                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
+                />
+              </div>
+            </div>
+            <PnlHeatmap
+              entryPrice={shock.p_after}
+              positionSize={positionSize}
+              direction={fadeDirection}
+            />
+          </div>
+        </details>
 
-        {/* 3. PayoffCurve */}
-        <PayoffCurve
-          entryPrice={shock.p_after}
-          positionSize={positionSize}
-          direction={fadeDirection}
-          currentPrice={currentPrice}
-          meanReversionTarget={meanReversionTarget}
-        />
+        <details className="group rounded-lg border border-border bg-surface-1">
+          <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+              Scenario Analysis
+            </span>
+          </summary>
+          <div className="space-y-3 px-5 pb-4">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-text-muted">Position Size:</label>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-text-muted">$</span>
+                <input
+                  type="number"
+                  value={positionSize}
+                  onChange={(e) => setPositionSize(Math.max(1, Math.min(10000, Number(e.target.value))))}
+                  min={1}
+                  max={10000}
+                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs"
+                />
+              </div>
+            </div>
+            <ScenarioPanel
+              entryPrice={shock.p_after}
+              shockDelta={shock.delta}
+              positionSize={positionSize}
+              category={shock.category}
+              backtestStats={catStats ?? (similarStats.backtest ? {
+                win_rate_6h: similarStats.backtest.win_rate_6h ?? 0.5,
+                avg_pnl_6h: similarStats.backtest.avg_pnl_per_dollar_6h,
+              } : null)}
+            />
+          </div>
+        </details>
 
-        {/* 4. ScenarioPanel */}
-        <ScenarioPanel
-          entryPrice={shock.p_after}
-          shockDelta={shock.delta}
-          positionSize={positionSize}
-          category={shock.category}
-          backtestStats={catStats ?? (similarStats.backtest ? {
-            win_rate_6h: similarStats.backtest.win_rate_6h ?? 0.5,
-            avg_pnl_6h: similarStats.backtest.avg_pnl_per_dollar_6h,
-          } : null)}
-        />
-
-        {/* 5. TradeSimulator */}
         {similarStats.backtest && (
-          <TradeSimulator
-            shockDelta={shock.delta}
-            shockCategory={shock.category}
-            backtest={similarStats.backtest}
-            distributions={{
-              "1h": similarStats.distribution_1h,
-              "6h": similarStats.distribution_6h,
-              "24h": similarStats.distribution_24h,
-            }}
-            sampleSize={similarStats.sample_size}
-            filterLevel={similarStats.filter_level}
-          />
+          <details className="group rounded-lg border border-border bg-surface-1">
+            <summary className="cursor-pointer list-none select-none px-5 py-3 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                <span className="text-text-muted transition-transform group-open:rotate-90">&#9654;</span>
+                Fade This Shock?
+              </span>
+            </summary>
+            <div className="px-1 pb-1">
+              <TradeSimulator
+                shockDelta={shock.delta}
+                shockCategory={shock.category}
+                backtest={similarStats.backtest}
+                distributions={{
+                  "1h": similarStats.distribution_1h,
+                  "6h": similarStats.distribution_6h,
+                  "24h": similarStats.distribution_24h,
+                }}
+                sampleSize={similarStats.sample_size}
+                filterLevel={similarStats.filter_level}
+              />
+            </div>
+          </details>
         )}
 
-        {/* 6. PnlTimeline */}
-        <PnlTimeline
-          series={series}
-          shockT2={shock.t2}
-          shockDelta={shock.delta}
-          positionSize={positionSize}
-        />
-
-        {/* 7. Post-Shock Outcomes Table */}
-        <div>
-          <h3 className="mb-4 text-lg font-semibold text-text-primary">
-            Post-Shock Outcomes
-          </h3>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-surface-2">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">
-                    Horizon
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
-                    Post Move
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-text-muted">
-                    Reversion
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border bg-surface-1">
-                <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
-                    1 hour
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.post_move_1h)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.reversion_1h)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
-                    6 hours
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.post_move_6h)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.reversion_6h)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-sm font-medium text-text-primary">
-                    24 hours
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.post_move_24h)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-text-secondary">
-                    {formatPp(shock.reversion_24h)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {shock.post_move_1h == null && shock.post_move_6h == null && shock.post_move_24h == null && (
-            <p className="mt-2 text-xs text-text-muted">
-              This is a live shock — post-shock data will populate as time passes.
-            </p>
-          )}
-        </div>
-
-        {/* 8. Caveats */}
+        {/* 6. Caveats */}
         <div className="rounded-lg border border-border bg-surface-2 p-4">
           <p className="text-xs text-text-muted">
             All analysis is based on historical data. In-sample backtest only —

@@ -65,7 +65,7 @@ export default function TradeSimulator({
   filterLevel,
 }: TradeSimulatorProps) {
   const [positionSize, setPositionSize] = useState(100);
-  const [horizon, setHorizon] = useState<Horizon>("6h");
+  const horizon: Horizon = "1h";
 
   const distribution = distributions[horizon];
 
@@ -137,29 +137,6 @@ export default function TradeSimulator({
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-secondary">
-            Horizon
-          </label>
-          <div className="mt-1 flex gap-1">
-            {(["1h", "6h", "24h"] as const).map((h) => (
-              <button
-                key={h}
-                onClick={() => setHorizon(h)}
-                className={`rounded-md px-3 py-2 text-sm font-medium ${
-                  horizon === h
-                    ? "bg-accent text-white"
-                    : distributions[h]
-                      ? "bg-surface-2 text-text-secondary hover:bg-surface-3"
-                      : "bg-surface-2 text-text-muted cursor-not-allowed"
-                }`}
-                disabled={!distributions[h]}
-              >
-                {h}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {!distribution ? (
