@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ExtensionButton } from "@/components/Header";
+
 import PortfolioBuilder from "@/components/PortfolioBuilder";
 import CategoryIcon, { getCategoryColor } from "@/components/CategoryIcon";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -790,7 +792,7 @@ export default function Home() {
     return (
       <>
         <nav className="sticky top-0 z-50 bg-surface-base" style={{ borderBottom: "2px solid var(--st-accent)" }}>
-          <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
             <Image
               src="/Frame 9.svg"
               alt="ShockTEST"
@@ -799,6 +801,7 @@ export default function Home() {
               className="h-11 w-auto"
               priority
             />
+            <ExtensionButton />
           </div>
         </nav>
         <main className="mx-auto max-w-7xl px-4 py-20">
@@ -821,7 +824,7 @@ export default function Home() {
             className="h-11 w-auto"
             priority
           />
-          <div />
+          <ExtensionButton />
         </div>
       </nav>
 

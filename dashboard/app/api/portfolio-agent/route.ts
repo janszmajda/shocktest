@@ -54,6 +54,8 @@ async function callK2(prompt: string): Promise<string> {
   const apiKey = process.env.K2_API_KEY;
   if (!apiKey) throw new Error("K2_API_KEY not set");
 
+  console.log(`[K2] prompt (${prompt.length} chars):\n${prompt}`);
+
   const res = await fetch(K2_URL, {
     method: "POST",
     headers: {
@@ -99,6 +101,7 @@ function extractJson<T>(text: string): T {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  const t0 = Date.now();
   try {
     const body = (await req.json()) as {
       bankroll?: number;
@@ -107,7 +110,10 @@ export async function POST(req: Request) {
     const bankroll = body.bankroll ?? 500;
     const frontendShocks = body.shocks ?? [];
 
+    console.log(`[/api/portfolio-agent] started: bankroll=$${bankroll}, ${frontendShocks.length} shocks`);
+
     if (frontendShocks.length === 0) {
+      console.log(`[/api/portfolio-agent] no shocks provided`);
       return NextResponse.json({ error: "No shocks provided" }, { status: 400 });
     }
 
@@ -173,15 +179,19 @@ Note on fade direction: if delta is positive (price spiked UP), the fade trade i
 Respond with ONLY a valid JSON object (no other text):
 {"allocations":[{"shock_id":"...","market_id":"...","question":"...","category":"...","delta":0.0,"p_after":0.0,"current_price":null,"size":100,"kelly_fraction":0.15,"rationale":"1-2 sentences on why this is a good fade based on the data"}],"total_deployed":450,"expected_pnl":15.5,"portfolio_note":"1 sentence on diversification"}`;
 
+    console.log(`[/api/portfolio-agent] calling K2 agent 1 (scanner)... ${Date.now() - t0}ms`);
     const analysisRaw = await callK2(analysisPrompt);
+    console.log(`[/api/portfolio-agent] agent 1 done: ${Date.now() - t0}ms, response length: ${analysisRaw.length}`);
 
     let portfolio: PortfolioOutput = { allocations: [], total_deployed: 0, expected_pnl: 0, portfolio_note: "" };
     try {
       const parsed = extractJson<PortfolioOutput>(analysisRaw);
       if (parsed && typeof parsed === "object" && "allocations" in parsed) {
         portfolio = parsed;
+        console.log(`[/api/portfolio-agent] parsed ${portfolio.allocations.length} allocations, $${portfolio.total_deployed} deployed`);
       }
-    } catch {
+    } catch (parseErr) {
+      console.log(`[/api/portfolio-agent] JSON parse failed: ${parseErr instanceof Error ? parseErr.message : parseErr}`);
       return NextResponse.json({ report: analysisRaw, allocations: [], portfolio_stats: {} });
     }
 
@@ -206,8 +216,11 @@ ${JSON.stringify(portfolio, null, 2)}
 
 Write only the memo, no other text.`;
 
+    console.log(`[/api/portfolio-agent] calling K2 agent 2 (report writer)... ${Date.now() - t0}ms`);
     const report = await callK2(reportPrompt);
+    console.log(`[/api/portfolio-agent] agent 2 done: ${Date.now() - t0}ms, report length: ${report.length}`);
 
+    console.log(`[/api/portfolio-agent] complete: ${Date.now() - t0}ms`);
     return NextResponse.json({
       report,
       allocations: portfolio.allocations,
@@ -219,6 +232,7 @@ Write only the memo, no other text.`;
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(`[/api/portfolio-agent] error at ${Date.now() - t0}ms:`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
