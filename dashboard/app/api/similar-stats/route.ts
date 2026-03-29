@@ -138,6 +138,7 @@ function computeBacktest(shocks: ShockDoc[]) {
 }
 
 export async function GET(request: NextRequest) {
+  const t0 = Date.now();
   try {
     const url = new URL(request.url);
     const category = url.searchParams.get("category");
@@ -150,6 +151,7 @@ export async function GET(request: NextRequest) {
     }
 
     const client = await clientPromise;
+    console.log(`[/api/similar-stats] mongo connect: ${Date.now() - t0}ms (cat=${category}, delta=${absDelta})`);
     const db = client.db("shocktest");
 
     // Level 1 (tight): same category + similar magnitude + same direction
@@ -188,6 +190,8 @@ export async function GET(request: NextRequest) {
       if (excludeId) shocks = shocks.filter((s) => String(s._id) !== excludeId);
       filterLevel = "all";
     }
+
+    console.log(`[/api/similar-stats] queries done: ${Date.now() - t0}ms (${shocks.length} shocks, level=${filterLevel})`);
 
     const backtest = computeBacktest(shocks);
 

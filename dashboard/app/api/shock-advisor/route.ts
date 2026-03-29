@@ -105,7 +105,15 @@ export async function POST(req: Request) {
     const isSports = body.category === "sports";
 
     const searchGuidance = isSports
-      ? `This is a live sports/esports market. Search for the game score, specific scoring events (goals, touchdowns, baskets, rounds won), lineup changes, or injuries around ${shockTime} that caused the odds to shift. Look for live game updates, box scores, or play-by-play.`
+      ? `This is a sports/esports WIN PROBABILITY market. Search for the current score, game clock/period, and key plays around ${shockTime}.
+
+IMPORTANT sports reasoning:
+- This is a live win probability, NOT a prediction market that mean-reverts. A team that's winning late in a game SHOULD have high win probability — that's not an overreaction.
+- Check if the game is still in progress, nearly over, or already finished.
+- If a team scored late and the game is almost over, rising win probability is rational, not an overreaction. Do NOT recommend fading it.
+- Only suggest a fade if the market clearly overreacted to a single play early in the game with lots of time remaining.
+- If the game is over or nearly over, just explain the outcome — don't recommend a trade.
+- Think about game context: score differential, time remaining, momentum, sport-specific factors (e.g. possession, power play, set point).`
       : `Search the web for news around ${shockTime} that explains this prediction market price movement. Focus on events from that specific date and time.`;
 
     const hoursAgo = (Date.now() - shockDate.getTime()) / 3600000;
@@ -134,7 +142,7 @@ Historical fade win rate: ${body.category_win_rate != null ? `${(body.category_w
 Post-shock reversion: ${reversionSummary}
 
 Respond in EXACTLY this JSON format, no other text:
-{"event":"One sentence: the specific ${isSports ? "in-game event (score, play, injury)" : "real-world event or news"} that caused the ${pp}pp ${direction}.","decision":"One sentence: the recommended trade action and why, using the historical fade win rate.","details":"2-3 sentences of deeper context: ${isSports ? "current game state, momentum factors, how often markets overreact to this type of play" : "broader context behind the news, how the market has historically reacted to similar events"}, and the key risk to watch."}`;
+{"event":"One sentence: the specific ${isSports ? "in-game event (score, play, injury) and current game state (score, period/quarter/half, time remaining)" : "real-world event or news"} that caused the ${pp}pp ${direction}.","decision":"One sentence: ${isSports ? "whether this price move makes sense given the game situation, and whether there's a trade opportunity or not — be honest if there isn't one" : "the recommended trade action and why, using the historical fade win rate"}.","details":"2-3 sentences: ${isSports ? "game context (score, time left, momentum), whether the probability change is justified by the game state, and only suggest a fade if the market genuinely overreacted early in a game with lots of time left" : "broader context behind the news, how the market has historically reacted to similar events, and the key risk to watch"}."}`;
 
     const raw = await callClaudeWithSearch(prompt);
 
