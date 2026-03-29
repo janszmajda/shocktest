@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120; // K2 reasoning can take time
+export const maxDuration = 120;
 
-const K2_URL = "https://api.k2think.ai/v1/chat/completions";
-const K2_MODEL = "MBZUAI-IFM/K2-Think-v2";
+const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,9 +16,9 @@ interface ShockContext {
   delta: number;
   abs_delta: number;
   p_after: number;
+  current_price: number | null;
   hours_ago: number | null;
-  fade_score?: number;
-  rationale?: string;
+  likely_resolved: boolean;
 }
 
 interface CategoryStat {
@@ -37,54 +36,76 @@ interface Allocation {
   category: string | null;
   delta: number;
   p_after: number;
+  current_price: number | null;
   size: number;
   kelly_fraction: number;
-  fade_score?: number;
   rationale: string;
 }
 
-interface RiskOutput {
+interface PortfolioOutput {
   allocations: Allocation[];
   total_deployed: number;
   expected_pnl: number;
   portfolio_note: string;
 }
 
-// ── K2 client ─────────────────────────────────────────────────────────────────
+// ── Claude client with web search ────────────────────────────────────────────
 
-async function callK2(messages: Array<{ role: string; content: string }>): Promise<string> {
-  const apiKey = process.env.K2_API_KEY;
-  if (!apiKey) throw new Error("K2_API_KEY not set");
+async function callClaude(prompt: string, useSearch: boolean = false): Promise<string> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
 
-  const userMsg = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-  console.log(`[K2 prompt]\n${userMsg}`);
+  console.log(`[Claude portfolio-agent prompt]\n${prompt}`);
 
-  const res = await fetch(K2_URL, {
+  const body: Record<string, unknown> = {
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 4096,
+    messages: [{ role: "user", content: prompt }],
+  };
+
+  if (useSearch) {
+    body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
+  }
+
+  const res = await fetch(CLAUDE_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model: K2_MODEL, messages, stream: false }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`K2 API error ${res.status}: ${err}`);
+    throw new Error(`Claude API error ${res.status}: ${err}`);
   }
 
-  const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-  let content = data.choices[0].message.content;
-  // K2 Think V2: reasoning is plain text ending with </think>, answer follows
-  const thinkEnd = content.indexOf("</think>");
-  if (thinkEnd !== -1) content = content.slice(thinkEnd + 8).trim();
-  return content;
+  const data = (await res.json()) as {
+    content: Array<{ type: string; text?: string }>;
+  };
+
+  return data.content
+    .filter((b) => b.type === "text" && b.text)
+    .map((b) => b.text!)
+    .join("")
+    .replace(/<\/?cite[^>]*>/g, "")
+    .trim();
 }
 
 function extractJson<T>(text: string): T {
+  // Try direct parse first
+  try {
+    return JSON.parse(text) as T;
+  } catch { /* continue */ }
+  // Try code block
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlock) return JSON.parse(codeBlock[1]) as T;
+  // Try first { or [
   const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
   if (match) return JSON.parse(match[1]) as T;
-  return JSON.parse(text) as T;
+  throw new Error("No JSON found");
 }
 
 // ── MongoDB context ───────────────────────────────────────────────────────────
@@ -93,18 +114,34 @@ async function fetchContext(bankroll: number) {
   const client = await clientPromise;
   const db = client.db("shocktest");
 
-  // Recent shocks — prefer live signals, fall back to latest
+  // Recent shocks
   let shocks = await db
     .collection("shock_events")
     .find({ is_recent: true, abs_delta: { $gte: 0.05 } })
     .sort({ abs_delta: -1 })
-    .limit(15)
+    .limit(30)
     .toArray();
 
   if (shocks.length === 0) {
-    shocks = await db.collection("shock_events").find({}).sort({ t2: -1 }).limit(15).toArray();
+    shocks = await db.collection("shock_events").find({}).sort({ t2: -1 }).limit(30).toArray();
   }
 
+  // Get current prices from market_series
+  const marketIds = [...new Set(shocks.map((s) => String(s.market_id)))];
+  const markets = await db
+    .collection("market_series")
+    .find({ market_id: { $in: marketIds } })
+    .toArray();
+
+  const currentPrices: Record<string, number> = {};
+  for (const m of markets) {
+    const series = m.series as Array<{ p: number }> | undefined;
+    if (series && series.length > 0) {
+      currentPrices[String(m.market_id)] = series[series.length - 1].p;
+    }
+  }
+
+  // Aggregate stats
   const stats = await db
     .collection("shock_results")
     .findOne({ _id: "aggregate_stats" as unknown as import("mongodb").ObjectId });
@@ -127,61 +164,26 @@ async function fetchContext(bankroll: number) {
     };
   }
 
-  const recentShocks: ShockContext[] = shocks.map((s) => ({
-    shock_id: String(s._id),
-    market_id: String(s.market_id),
-    question: String(s.question),
-    category: (s.category as string | null) ?? null,
-    delta: Number(s.delta),
-    abs_delta: Number(s.abs_delta),
-    p_after: Number(s.p_after),
-    hours_ago: s.hours_ago != null ? Number(s.hours_ago) : null,
-  }));
+  const recentShocks: ShockContext[] = shocks.map((s) => {
+    const mid = String(s.market_id);
+    const cp = currentPrices[mid] ?? null;
+    const cpPct = cp != null ? cp * 100 : null;
+    return {
+      shock_id: String(s._id),
+      market_id: mid,
+      question: String(s.question),
+      category: (s.category as string | null) ?? null,
+      delta: Number(s.delta),
+      abs_delta: Number(s.abs_delta),
+      p_after: Number(s.p_after),
+      current_price: cp,
+      hours_ago: s.hours_ago != null ? Number(s.hours_ago) : null,
+      likely_resolved: cpPct != null && (cpPct <= 2 || cpPct >= 98),
+    };
+  });
 
   return { bankroll, recentShocks, categoryStats, overallWinRate: stats?.reversion_rate_6h ?? null };
 }
-
-// ── Agent prompts ─────────────────────────────────────────────────────────────
-
-const SCANNER_PROMPT = `You are a quantitative signal scanner for ShockTest, a Polymarket trading tool.
-
-ShockTest has backtested 1,337 shocks across 107 markets.
-Key finding: 59.9% of shocks revert within 6h (z=+7.13, p<0.001).
-
-Category win rates at 6h:
-- politics: 64.7% (statistically significant)
-- science:  60.6%
-- sports:   56.1%
-- other:    53.9%
-- crypto:   53.5%
-
-Pick the top 3-5 fade candidates. Score on: category win rate, shock size, recency.
-Respond with ONLY a valid JSON array, no other text:
-[{"shock_id":"...","market_id":"...","question":"...","category":"...","delta":0,"p_after":0,"hours_ago":0,"fade_score":75,"rationale":"..."}]`;
-
-const RISK_PROMPT = `You are a risk manager for a prediction market trading desk.
-
-Size the portfolio using half-Kelly: position_size = bankroll * (2 * win_rate - 1) / 2
-Cap any single position at 30% of bankroll. Total should use 85-95% of bankroll.
-
-Respond with ONLY a valid JSON object, no other text:
-{"allocations":[{"shock_id":"...","market_id":"...","question":"...","category":"...","delta":0,"p_after":0,"size":150,"kelly_fraction":0.15,"rationale":"..."}],"total_deployed":450,"expected_pnl":15.5,"portfolio_note":"..."}`;
-
-const REPORT_PROMPT = `You are a trade desk analyst writing a concise portfolio memo.
-
-Format:
-FADE PORTFOLIO — $[total] · [N] positions
-
-[1/N] [question truncated to 60 chars] | $[size] | Entry: [p_after*100]¢ | Score: [fade_score]/100
-  Thesis: [why revert — 1-2 sentences using real win rate numbers]
-  Risk: [main failure mode — 1 sentence]
-
-PORTFOLIO SUMMARY
-  Total deployed: $[amount]
-  Expected P&L: +$[amount]
-  [diversification note]
-
-⚠️ In-sample backtest only. Not investment advice.`;
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
@@ -192,47 +194,75 @@ export async function POST(req: Request) {
 
     const context = await fetchContext(bankroll);
 
-    // Agent 1 — Scanner
-    const scannerRaw = await callK2([
-      { role: "system", content: SCANNER_PROMPT },
-      {
-        role: "user",
-        content: `Recent shocks:\n${JSON.stringify(context.recentShocks, null, 2)}\n\nCategory stats:\n${JSON.stringify(context.categoryStats, null, 2)}\n\nBankroll: $${bankroll}`,
-      },
-    ]);
+    // Agent 1 — Scanner + Risk Manager (with web search)
+    const analysisPrompt = `You are a quantitative portfolio builder for ShockTest, a Polymarket fade trading tool.
 
-    let candidates: ShockContext[] = [];
+BACKGROUND:
+- ShockTest has backtested 1,337 shocks across 107 markets
+- 59.9% of shocks revert within 6h (z=+7.13, p<0.001)
+- Category win rates: politics 64.7% (significant), science 60.6%, sports 56.1%, other 53.9%, crypto 53.5%
+
+TASK:
+1. Review the shocks below. Use web search to check if any of these markets have recent news that makes them especially good or bad fade candidates.
+2. Pick the top 3-5 candidates that are still tradeable. Markets where current_price is near 0% or 100% are likely RESOLVED — skip those and pick markets that are still open.
+3. Size positions using half-Kelly: position_size = bankroll * (2 * category_win_rate - 1) / 2
+4. Cap any single position at 30% of bankroll. Total should deploy 85-95% of bankroll.
+5. If all markets appear resolved, pick the ones that were the best fade opportunities and explain what the trade would have been.
+
+BANKROLL: $${bankroll}
+
+RECENT SHOCKS:
+${JSON.stringify(context.recentShocks.map((s) => ({
+  ...s,
+  p_after_pct: (s.p_after * 100).toFixed(1) + "%",
+  current_price_pct: s.current_price != null ? (s.current_price * 100).toFixed(1) + "%" : "unknown",
+  delta_pp: (s.delta * 100).toFixed(1) + "pp",
+  status: s.likely_resolved ? "RESOLVED — skip" : "OPEN",
+})), null, 2)}
+
+CATEGORY STATS:
+${JSON.stringify(context.categoryStats, null, 2)}
+
+Note on fade direction: if delta is positive (price spiked UP), the fade trade is BUY NO. If delta is negative (price dropped), the fade trade is BUY YES.
+
+Respond with ONLY a valid JSON object (no other text):
+{"allocations":[{"shock_id":"...","market_id":"...","question":"...","category":"...","delta":0.0,"p_after":0.0,"current_price":0.0,"direction":"Buy NO","size":100,"kelly_fraction":0.15,"rationale":"1-2 sentences on why this is a good fade, citing any news found"}],"total_deployed":450,"expected_pnl":15.5,"portfolio_note":"1 sentence on diversification"}`;
+
+    const analysisRaw = await callClaude(analysisPrompt, true);
+
+    let portfolio: PortfolioOutput = { allocations: [], total_deployed: 0, expected_pnl: 0, portfolio_note: "" };
     try {
-      const parsed = extractJson<ShockContext[]>(scannerRaw);
-      candidates = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      candidates = [];
-    }
-
-    // Agent 2 — Risk Manager
-    const riskRaw = await callK2([
-      { role: "system", content: RISK_PROMPT },
-      {
-        role: "user",
-        content: `Bankroll: $${bankroll}\n\nCandidates:\n${JSON.stringify(candidates, null, 2)}\n\nCategory stats:\n${JSON.stringify(context.categoryStats, null, 2)}`,
-      },
-    ]);
-
-    let portfolio: RiskOutput = { allocations: [], total_deployed: 0, expected_pnl: 0, portfolio_note: "" };
-    try {
-      const parsed = extractJson<RiskOutput>(riskRaw);
+      const parsed = extractJson<PortfolioOutput>(analysisRaw);
       if (parsed && typeof parsed === "object" && "allocations" in parsed) {
         portfolio = parsed;
       }
     } catch {
-      portfolio = { allocations: [], total_deployed: 0, expected_pnl: 0, portfolio_note: "" };
+      // If JSON extraction fails, return raw text as report
+      return NextResponse.json({ report: analysisRaw, allocations: [], portfolio_stats: {} });
     }
 
-    // Agent 3 — Report Writer
-    const report = await callK2([
-      { role: "system", content: REPORT_PROMPT },
-      { role: "user", content: `Write the trade memo:\n${JSON.stringify(portfolio, null, 2)}` },
-    ]);
+    // Agent 2 — Report Writer
+    const reportPrompt = `Write a concise trade memo for this portfolio. Format:
+
+FADE PORTFOLIO — $${portfolio.total_deployed} · ${portfolio.allocations.length} positions
+
+For each position:
+[N] [direction] [question, max 60 chars] | $[size] | Entry: [p_after as cents]¢ | Now: [current_price as cents]¢
+  Thesis: [rationale from the allocation — 1-2 sentences]
+  Risk: [main failure mode — 1 sentence]
+
+End with:
+PORTFOLIO SUMMARY
+  Total deployed: $[amount]
+  Expected P&L: +$[amount]
+  [portfolio_note]
+
+Data:
+${JSON.stringify(portfolio, null, 2)}
+
+Write only the memo, no other text.`;
+
+    const report = await callClaude(reportPrompt);
 
     return NextResponse.json({
       report,

@@ -25,6 +25,7 @@ interface SelectedShock {
   delta: number;
   p_after: number;
   positionSize: number;
+  source: "manual" | "ai";
 }
 
 export default function PortfolioPage() {
@@ -150,7 +151,7 @@ export default function PortfolioPage() {
   }, [selected, similarStatsMap]);
 
   const addShock = (shock: Shock) => {
-    if (selected.length >= 4) return;
+    if (selected.length >= 8) return;
     if (selected.find((s) => s.market_id === shock.market_id)) return;
     setSelected([
       ...selected,
@@ -161,6 +162,7 @@ export default function PortfolioPage() {
         delta: shock.delta,
         p_after: shock.p_after,
         positionSize: 100,
+        source: "manual",
       },
     ]);
   };
@@ -190,11 +192,13 @@ export default function PortfolioPage() {
       const data = (await res.json()) as {
         report?: string;
         allocations?: Array<{
+          shock_id?: string;
           market_id: string;
           question: string;
           category: string | null;
           delta: number;
           p_after: number;
+          current_price?: number | null;
           size: number;
         }>;
         error?: string;
@@ -202,21 +206,28 @@ export default function PortfolioPage() {
       if (data.error) throw new Error(data.error);
       if (data.report) setAgentReport(data.report);
       if (data.allocations && data.allocations.length > 0) {
-        const newSelected: SelectedShock[] = [];
-        for (const alloc of data.allocations.slice(0, 4)) {
-          const match = allShocks.find((s) => s.market_id === alloc.market_id);
-          if (match) {
-            newSelected.push({
-              market_id: match.market_id,
-              question: match.question,
-              category: match.category,
-              delta: match.delta,
-              p_after: match.p_after,
-              positionSize: alloc.size,
-            });
-          }
+        const aiPicks: SelectedShock[] = [];
+        for (const alloc of data.allocations) {
+          // Try to match against existing shocks for best data
+          const match = allShocks.find(
+            (s) => s.market_id === alloc.market_id || s._id === alloc.shock_id,
+          );
+          aiPicks.push({
+            market_id: match?.market_id ?? alloc.market_id,
+            question: match?.question ?? alloc.question,
+            category: match?.category ?? alloc.category,
+            delta: match?.delta ?? alloc.delta,
+            p_after: match?.p_after ?? alloc.p_after,
+            positionSize: alloc.size,
+            source: "ai",
+          });
         }
-        if (newSelected.length > 0) setSelected(newSelected);
+        // Merge: keep manual picks that don't overlap, add AI picks
+        setSelected((prev) => {
+          const aiIds = new Set(aiPicks.map((p) => p.market_id));
+          const kept = prev.filter((s) => !aiIds.has(s.market_id));
+          return [...kept, ...aiPicks].slice(0, 8);
+        });
       }
     } catch (e) {
       setAgentError(e instanceof Error ? e.message : "Unknown error");
@@ -253,8 +264,8 @@ export default function PortfolioPage() {
             Fade Portfolio Builder
           </h2>
           <p className="mt-1 text-sm text-text-muted">
-            Select 2-4 shocks to fade simultaneously. See the combined payoff
-            and diversification benefit.
+            Build a fade portfolio manually or with AI. Add, remove, and resize
+            positions freely.
           </p>
         </div>
 
@@ -344,19 +355,22 @@ export default function PortfolioPage() {
                     <button
                       key={shock._id}
                       onClick={() => addShock(shock)}
-                      disabled={selected.length >= 4 || isSelected}
+                      disabled={selected.length >= 8 || isSelected}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
                         isSelected
                           ? "border-accent bg-accent-dim opacity-60"
                           : "border-border bg-surface-1 hover:border-accent hover:bg-accent-dim"
                       } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
+                      <span className={`mr-1.5 shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase ${shock.delta > 0 ? "bg-no-dim text-no-text" : "bg-yes-dim text-yes-text"}`}>
+                        {shock.delta > 0 ? "NO" : "YES"}
+                      </span>
                       <span className="font-medium text-text-primary">
-                        {shock.question.substring(0, 55)}
-                        {shock.question.length > 55 ? "..." : ""}
+                        {shock.question.substring(0, 50)}
+                        {shock.question.length > 50 ? "..." : ""}
                       </span>
                       <span
-                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-yes-text" : "text-no-text"}`}
+                        className={`ml-2 font-semibold ${shock.delta > 0 ? "text-no-text" : "text-yes-text"}`}
                       >
                         {shock.delta > 0 ? "+" : ""}
                         {(shock.delta * 100).toFixed(0)}pp
@@ -389,14 +403,22 @@ export default function PortfolioPage() {
                     >
                       <div
                         className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: COLORS[i] }}
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
                       />
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${s.delta > 0 ? "bg-no-dim text-no-text" : "bg-yes-dim text-yes-text"}`}>
+                        {s.delta > 0 ? "Buy NO" : "Buy YES"}
+                      </span>
                       <span className="flex-1 text-sm text-text-primary">
-                        {s.question.substring(0, 45)}...{" "}
+                        {s.question.substring(0, 40)}...{" "}
                         <span className="text-text-muted">
                           ({s.delta > 0 ? "+" : ""}
                           {(s.delta * 100).toFixed(0)}pp)
                         </span>
+                        {s.source === "ai" && (
+                          <span className="ml-1.5 rounded bg-accent-dim px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                            AI
+                          </span>
+                        )}
                       </span>
                       {similarStatsMap[s.market_id] && (
                         <span className="text-xs text-text-muted">
