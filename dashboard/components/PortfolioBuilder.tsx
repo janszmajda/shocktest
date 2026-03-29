@@ -300,7 +300,7 @@ export default function PortfolioBuilder({ allShocks }: PortfolioBuilderProps) {
           <button
             onClick={buildWithAgent}
             disabled={agentLoading}
-            className="w-28 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-md bg-accent px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {agentLoading ? <>Building<AnimatedDots /></> : agentReport ? "Regenerate" : "Build with AI"}
           </button>
