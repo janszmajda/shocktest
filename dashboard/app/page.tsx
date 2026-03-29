@@ -258,8 +258,8 @@ function ShockCard({
         </span>
       </div>
 
-      {/* Title with market image */}
-      <div className="flex items-start gap-2.5">
+      {/* Title with market image — min-h ensures uniform card height */}
+      <div className="flex min-h-[2.75rem] items-start gap-2.5">
         {imageUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
