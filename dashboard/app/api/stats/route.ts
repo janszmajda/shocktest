@@ -4,14 +4,17 @@ import clientPromise from "@/lib/mongodb";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const t0 = Date.now();
   try {
     const client = await clientPromise;
-    const db = client.db("shocktest");
+    console.log(`[/api/stats] mongo connect: ${Date.now() - t0}ms`);
 
+    const db = client.db("shocktest");
     const stats = await db
       .collection("shock_results")
       .findOne({ _id: "aggregate_stats" as unknown as import("mongodb").ObjectId });
 
+    console.log(`[/api/stats] query done: ${Date.now() - t0}ms`);
     return NextResponse.json(
       stats || {
         total_shocks: 0,
