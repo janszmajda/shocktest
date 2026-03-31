@@ -11,7 +11,9 @@
       "Bash(python3 -m py_compile analysis/categorize.py)",
       "Bash(python3 -m py_compile scripts/fetch_polymarket.py)",
       "Bash(launchctl load:*)",
-      "Bash(launchctl list:*)"
+      "Bash(launchctl list:*)",
+      "Bash(find /Users/janszmajda/Documents/ShockTest/dashboard/node_modules/next/dist/docs -type f -name *metadata*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

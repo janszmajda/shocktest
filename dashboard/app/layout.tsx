@@ -20,6 +20,27 @@ export const metadata: Metadata = {
   icons: {
     icon: "/BrowserLogo.svg",
   },
+  openGraph: {
+    title: "ShockTest",
+    description:
+      "Analyzing probability shocks in prediction markets to detect systematic mean reversion.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 480,
+        height: 480,
+        alt: "ShockTest logo",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "ShockTest",
+    description:
+      "Analyzing probability shocks in prediction markets to detect systematic mean reversion.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
